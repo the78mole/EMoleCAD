@@ -24,6 +24,7 @@ Ohne Installation: `molecad.html` direkt im Browser öffnen.
 - **Neu nummerieren** (im grafischen Editor) vergibt die Kennzeichen je Kennbuchstabe (F1, F2, …) in Lesereihenfolge der Bausteine im Editor: Zeile für Zeile von oben nach unten, innerhalb einer Zeile von links nach rechts. Quellen und Datenverbindungen werden mit umbenannt.
 - Die Reihenfolge der Spalten im Plan folgt der Anordnung im grafischen Editor (links nach rechts); ohne Editorpositionen gilt die Reihenfolge im YAML.
 - Editor und Plan lassen sich über „Einklappen“ zur Seite klappen; der andere Bereich bekommt dann die volle Breite. Die schmale Leiste am Rand blendet ihn wieder ein.
+- Beim Ziehen rasten Bausteine weich ein: zuerst an benachbarten Bausteinen (gleiche linke Kante oder Oberkante, mit roter Hilfslinie), sonst am Raster der automatischen Anordnung (Spalten 210 px, Zeilen 130 px). Mit gedrückter `Alt`-Taste lässt sich frei schieben.
 - Im grafischen Editor laufen alle Abgänge einer Komponente über einen gemeinsamen Bus; die Leiterangabe (z. B. `L1/N/PE`) steht direkt über der angeschlossenen Komponente.
 
 ## Speichern

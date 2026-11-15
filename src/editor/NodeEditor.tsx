@@ -1,5 +1,5 @@
 import {
-  Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, applyNodeChanges, useReactFlow,
+  Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, ViewportPortal, applyNodeChanges, useReactFlow,
   type Connection, type Edge, type NodeChange, type EdgeChange, type IsValidConnection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -12,6 +12,7 @@ import { Bibliothek } from './Bibliothek'
 import { Eigenschaften } from './Eigenschaften'
 import { KomponentenNode, type KomponentenNodeTyp } from './KomponentenNode'
 import { BusKante } from './BusKante'
+import { rasten, type Hilfslinie } from './raster'
 import { aktualisieren } from '../model/ops'
 
 const nodeTypes = { komponente: KomponentenNode }
@@ -41,6 +42,17 @@ function Innen({ projekt, analyse, onChange }: Props) {
     }))
   }, [projekt, analyse, autoPos, auswahl])
   const [nodes, setNodes] = useState<KomponentenNodeTyp[]>(sollNodes)
+  const nodesRef = useRef(nodes)
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
+  const [linien, setLinien] = useState<Hilfslinie[]>([])
+  const altRef = useRef(false)
+  const gerastet = useRef(new Map<string, { x: number; y: number }>())
+  useEffect(() => {
+    const t = (e: KeyboardEvent) => { altRef.current = e.altKey }
+    window.addEventListener('keydown', t)
+    window.addEventListener('keyup', t)
+    return () => { window.removeEventListener('keydown', t); window.removeEventListener('keyup', t) }
+  }, [])
   useEffect(() => setNodes(sollNodes), [sollNodes])
 
   const edges = useMemo<Edge[]>(() => {
@@ -98,6 +110,21 @@ function Innen({ projekt, analyse, onChange }: Props) {
       return
     }
     for (const c of changes) if (c.type === 'select' && c.selected) setAuswahl(c.id)
+    // Einrasten beim Ziehen (Alt gedrückt halten = frei schieben)
+    const zug = changes.filter((c): c is Extract<typeof c, { type: 'position' }> => c.type === 'position' && !!c.dragging && !!c.position)
+    if (zug.length && !altRef.current) {
+      const bewegt = new Set(zug.map((c) => c.id))
+      const andere = nodesRef.current.filter((n) => !bewegt.has(n.id)).map((n) => n.position)
+      const { pos, linien } = rasten(zug[0].position!, andere, rf.getZoom())
+      const dx = pos.x - zug[0].position!.x, dy = pos.y - zug[0].position!.y
+      for (const c of zug) {
+        c.position = { x: c.position!.x + dx, y: c.position!.y + dy }
+        gerastet.current.set(c.id, c.position)
+      }
+      setLinien(linien)
+    } else if (zug.length) {
+      for (const c of zug) gerastet.current.delete(c.id)
+    }
     setNodes((ns) => applyNodeChanges(changes, ns))
   }, [onChange])
 
@@ -129,7 +156,12 @@ function Innen({ projekt, analyse, onChange }: Props) {
   const onNodeDragStop = useCallback((_: unknown, __: unknown, bewegt: KomponentenNodeTyp[]) => {
     const p = pRef.current
     const editor = { ...autoLayout(p), ...(p.editor ?? {}) }
-    for (const n of bewegt) editor[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) }
+    setLinien([])
+    for (const n of bewegt) {
+      const pos = gerastet.current.get(n.id) ?? n.position
+      editor[n.id] = { x: Math.round(pos.x), y: Math.round(pos.y) }
+    }
+    gerastet.current.clear()
     onChange({ ...p, editor })
   }, [onChange])
 
@@ -153,7 +185,8 @@ function Innen({ projekt, analyse, onChange }: Props) {
     e.preventDefault()
     const typ = e.dataTransfer.getData('application/molecad')
     if (!typ) return
-    const pos = rf.screenToFlowPosition({ x: e.clientX - 80, y: e.clientY - 20 })
+    const roh = rf.screenToFlowPosition({ x: e.clientX - 80, y: e.clientY - 20 })
+    const pos = e.altKey ? roh : rasten(roh, nodesRef.current.map((n) => n.position), rf.getZoom()).pos
     neu(typ, pos)
   }, [neu, rf])
 
@@ -200,6 +233,17 @@ function Innen({ projekt, analyse, onChange }: Props) {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={20} size={1} />
+          <ViewportPortal>
+            {linien.map((l, i) => (
+              <div
+                key={i}
+                className="hilfslinie"
+                style={l.art === 'x'
+                  ? { left: l.wert + 85, top: l.von - 20, width: 0, height: l.bis - l.von + 120 }
+                  : { left: l.von - 20, top: l.wert, height: 0, width: l.bis - l.von + 210 }}
+              />
+            ))}
+          </ViewportPortal>
           <Controls />
           <MiniMap pannable zoomable nodeColor={(n) => (n.data as KomponentenNodeTyp['data']).def.farbe} />
         </ReactFlow>

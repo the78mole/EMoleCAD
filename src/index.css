@@ -148,3 +148,4 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .kopf button.primaer-kopf:disabled { background: #2b3344; border-color: #3b4558; }
 .bus-label { position: absolute; pointer-events: none; font-size: 10px; line-height: 1; color: #475569; background: rgba(248,249,251,.9); padding: 1px 3px; border-radius: 3px; white-space: nowrap; }
 .bus-punkt { fill: #334155; }
+.hilfslinie { position: absolute; border-left: 1px dashed #e11d74; border-top: 1px dashed #e11d74; pointer-events: none; z-index: 1000; }
