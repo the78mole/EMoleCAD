@@ -108,7 +108,7 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
   const aw = W - L - R - 10
   const ah = H - O - U - 10 - sfHoehe - (modus === 'allpolig' ? 6 : 0)
   const massstab = Math.min(aw / plan.breite, ah / plan.hoehe, 1.5)
-  const dx = ax + (aw - plan.breite * massstab) / 2
+  const dx = ax // linksbündig
   const dy = ay
   s.roh(`<g transform="translate(${dx.toFixed(2)} ${dy.toFixed(2)}) scale(${massstab.toFixed(4)})">${plan.inhalt}</g>`)
   return { breite: W, hoehe: H, svg: huelle(W, H, s.toString()) }

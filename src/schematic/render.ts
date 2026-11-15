@@ -122,21 +122,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     }
     let x = x0
     for (const c of n.kinder) x += platziere(c, x)
-    let summe = x - x0
-    if (summe < eigen) {
-      const verschiebe = (eigen - summe) / 2
-      const schiebe = (k: Knoten) => {
-        const lk = lagen.get(k)!
-        lk.x += verschiebe
-        if (lk.slotX0 !== undefined) lk.slotX0 += verschiebe
-        k.kinder.forEach(schiebe)
-      }
-      n.kinder.forEach(schiebe)
-      summe = eigen
-    }
-    const erst = lagen.get(n.kinder[0])!.x
-    const letzt = lagen.get(n.kinder[n.kinder.length - 1])!.x
-    l.x = n.kinder.length === 1 ? erst : (erst + letzt) / 2
+    const summe = Math.max(x - x0, eigen)
+    // linksbündig: Gerät steht über seinem ersten Abgang
+    l.x = lagen.get(n.kinder[0])!.x
     return summe
   }
 
@@ -156,9 +144,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     let x = x0
     for (const c of n.kinder) x += platziereSeite(c, x, basis, ebene + 1)
     const summe = Math.max(x - x0, eigen)
-    const erst = lagen.get(n.kinder[0])!.x
-    const letzt = lagen.get(n.kinder[n.kinder.length - 1])!.x
-    l.x = n.kinder.length === 1 ? erst : (erst + letzt) / 2
+    l.x = lagen.get(n.kinder[0])!.x
     return summe
   }
 
