@@ -73,6 +73,10 @@ function komponenteAus(k: unknown, i: number): Komponente {
     if (pole !== 1 && pole !== 3) throw new YamlFehler(`Komponente "${k.id}": pole muss 1 oder 3 sein`)
     out.pole = pole
   }
+  if (k.fest !== undefined) {
+    if (typeof k.fest !== 'boolean') throw new YamlFehler(`Komponente "${k.id}": fest muss true oder false sein`)
+    if (k.fest) out.fest = true
+  }
   if (k.phase !== undefined) {
     const ph = String(k.phase).toUpperCase()
     if (!['L1', 'L2', 'L3'].includes(ph)) throw new YamlFehler(`Komponente "${k.id}": phase muss L1, L2 oder L3 sein`)
@@ -104,6 +108,7 @@ export function toYaml(p: Projekt): string {
     netz: p.netz.spannung ? p.netz : { form: p.netz.form },
     komponenten: p.komponenten.map((k) => {
       const o: Record<string, unknown> = { id: k.id, typ: k.typ }
+      if (k.fest) o.fest = true
       if (k.name) o.name = k.name
       if (k.quelle) o.quelle = k.quelle
       if (k.pole) o.pole = k.pole

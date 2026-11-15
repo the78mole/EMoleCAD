@@ -111,6 +111,32 @@ describe('Neu nummerieren', () => {
   })
 })
 
+describe('Festgeschriebene IDs', () => {
+  it('bleiben beim Neu nummerieren erhalten und werden mitgezählt', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    // LS 6 A im Vorzählerbereich als F001 festschreiben
+    const komponenten = p.komponenten.map((k) =>
+      k.id === 'F1' ? { ...k, id: 'F001', fest: true } : k.quelle === 'F1' ? { ...k, quelle: 'F001' } : k)
+    const n = neuNummerieren({ ...p, komponenten, editor: undefined })
+    const f001 = n.komponenten.find((k) => k.id === 'F001')!
+    expect(f001.fest).toBe(true)
+    expect(f001.params?.nennstrom).toBe(6)
+    expect(n.komponenten.filter((k) => k.quelle === 'F001')).toHaveLength(2)
+    // die übrigen LS/RCD beginnen wieder bei F1
+    expect(n.komponenten.find((k) => k.id === 'F1')!.typ).toBe('rcd')
+    expect(parseYaml(toYaml(n))).toEqual(n)
+  })
+  it('werden nicht doppelt vergeben', () => {
+    const p = parseYaml(`komponenten:
+  - { id: X1, typ: hausanschluss }
+  - { id: F2, typ: ls, quelle: X1, fest: true }
+  - { id: F7, typ: ls, quelle: X1 }
+  - { id: F8, typ: ls, quelle: X1 }`)
+    const ids = neuNummerieren(p).komponenten.map((k) => k.id)
+    expect(ids).toEqual(['X1', 'F2', 'F1', 'F3'])
+  })
+})
+
 describe('Plan', () => {
   it('erzeugt einpoligen und allpoligen Plan', () => {
     const p = parseYaml(BEISPIEL_YAML)

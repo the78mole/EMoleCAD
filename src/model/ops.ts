@@ -102,14 +102,17 @@ export function neuNummerieren(p: Projekt): Projekt {
     if (z && pos(k.id).y - pos(z[0].id).y < ZEILE) z.push(k)
     else zeilen.push([k])
   }
+  const festeIds = new Set(p.komponenten.filter((k) => k.fest).map((k) => k.id))
   const neu = new Map<string, string>()
   const zaehler: Record<string, number> = {}
   for (const z of zeilen) {
     z.sort((x, y) => pos(x.id).x - pos(y.id).x)
     for (const k of z) {
+      if (k.fest) { neu.set(k.id, k.id); continue }
       const pre = typDef(k.typ).bmk
-      zaehler[pre] = (zaehler[pre] ?? 0) + 1
-      neu.set(k.id, `${pre}${zaehler[pre]}`)
+      let id: string
+      do { zaehler[pre] = (zaehler[pre] ?? 0) + 1; id = `${pre}${zaehler[pre]}` } while (festeIds.has(id))
+      neu.set(k.id, id)
     }
   }
   const m = (id: string) => neu.get(id) ?? id

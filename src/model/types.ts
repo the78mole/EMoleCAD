@@ -15,6 +15,8 @@ export interface Kabel {
  * (außer dem Hausanschluss) hat genau eine `quelle` (vorgeschaltete Komponente). */
 export interface Komponente {
   id: string
+  /** ID festgeschrieben: „Neu nummerieren“ lässt sie unverändert */
+  fest?: boolean
   typ: string
   name?: string
   quelle?: string

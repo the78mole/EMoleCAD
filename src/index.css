@@ -149,3 +149,5 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .bus-label { position: absolute; pointer-events: none; font-size: 10px; line-height: 1; color: #475569; background: rgba(248,249,251,.9); padding: 1px 3px; border-radius: 3px; white-space: nowrap; }
 .bus-punkt { fill: #334155; }
 .hilfslinie { position: absolute; border-left: 1px dashed #e11d74; border-top: 1px dashed #e11d74; pointer-events: none; z-index: 1000; }
+.eigenschaften label.haken { display: flex; flex-direction: row; align-items: center; gap: 6px; margin-top: -2px; font-size: 12px; }
+.kn-fest { font-size: 10px; }

@@ -27,7 +27,7 @@ export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp
         {leiter && <span className="kn-leiter">{leiter}</span>}
       </div>
       <div className="kn-rumpf">
-        <div className="kn-bmk">{knoten?.bmk ?? k.id}</div>
+        <div className="kn-bmk">{knoten?.bmk ?? k.id}{k.fest && <span className="kn-fest" title="ID festgeschrieben"> 🔒</span>}</div>
         {k.name && <div className="kn-name">{k.name}</div>}
         {kurz.trim() && <div className="kn-kurz">{kurz}</div>}
       </div>

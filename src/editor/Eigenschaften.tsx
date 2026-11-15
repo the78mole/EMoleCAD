@@ -59,6 +59,10 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
       <label>ID (BMK)
         <input value={idEntwurf} onChange={(e) => setIdEntwurf(e.target.value)} onBlur={idUebernehmen} onKeyDown={(e) => e.key === 'Enter' && idUebernehmen()} />
       </label>
+      <label className="haken" title="„Neu nummerieren“ lässt diese ID unverändert und vergibt sie nicht an andere Komponenten">
+        <input type="checkbox" checked={!!k.fest} onChange={(e) => setze({ fest: e.target.checked || undefined })} />
+        ID festschreiben
+      </label>
       <label>Bezeichnung
         <input value={k.name ?? ''} placeholder={def.label} onChange={(e) => setze({ name: e.target.value || undefined })} />
       </label>
