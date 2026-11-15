@@ -21,7 +21,7 @@ Ohne Installation: `molecad.html` direkt im Browser öffnen.
 - **Grafischer Editor**: Bausteine aus der Bibliothek links auf die Fläche ziehen (oder doppelklicken – dann hängt der neue Baustein direkt an der ausgewählten Komponente). Verbindung vom unteren Anschluss (Abgang) zum oberen Anschluss (Einspeisung) ziehen. Klick auf einen Baustein öffnet die Eigenschaften. `Entf` löscht Bausteine oder Verbindungen.
 - **YAML**: Dieselben Daten als Text. Änderungen werden sofort übernommen; bei Syntaxfehlern bleibt der letzte gültige Stand stehen.
 - **Plan**: Umschalten einpolig/allpolig, Anordnung wählen („Einspeisung links, Spalten“ im HagerCAD-Stil mit Stromkreistabelle oder „Baum von oben“), Blattvorlage wählen (A3/A4 mit Schriftfeld, kompakt, ohne Rahmen), Export als SVG, PDF oder PDF mit beiden Plänen.
-- **Neu nummerieren** (im grafischen Editor) vergibt die Kennzeichen je Kennbuchstabe (F1, F2, …) in Lesereihenfolge der Bausteine im Editor: Zeile für Zeile von oben nach unten, innerhalb einer Zeile von links nach rechts. Quellen und Datenverbindungen werden mit umbenannt. Komponenten mit Häkchen „ID festschreiben“ (im YAML `fest: true`, im Editor mit 🔒 markiert) behalten ihre ID; diese IDs werden auch nicht an andere vergeben. Beispiel: `F001` festgeschrieben, die übrigen LS zählen trotzdem ab `F1`.
+- **Neu nummerieren** (im grafischen Editor) vergibt die Kennzeichen je Kennbuchstaben (FC1, FC2, …) in Lesereihenfolge der Bausteine im Editor: Zeile für Zeile von oben nach unten, innerhalb einer Zeile von links nach rechts. Quellen und Datenverbindungen werden mit umbenannt. Komponenten mit Häkchen „ID festschreiben“ (im YAML `fest: true`, im Editor mit 🔒 markiert) behalten ihre ID; diese IDs werden auch nicht an andere vergeben. Beispiel: `FC001` festgeschrieben, die übrigen Überstromschutzgeräte zählen trotzdem ab `FC1`.
 - Die Reihenfolge der Spalten im Plan folgt der Anordnung im grafischen Editor (links nach rechts); ohne Editorpositionen gilt die Reihenfolge im YAML.
 - Editor und Plan lassen sich über „Einklappen“ zur Seite klappen; der andere Bereich bekommt dann die volle Breite. Die schmale Leiste am Rand blendet ihn wieder ein.
 - Beim Ziehen rasten Bausteine weich ein: zuerst an benachbarten Bausteinen (gleiche linke Kante oder Oberkante, mit roter Hilfslinie), sonst am Raster der automatischen Anordnung (Spalten 210 px, Zeilen 130 px). Mit gedrückter `Alt`-Taste lässt sich frei schieben.
@@ -52,22 +52,23 @@ netz:
   form: TN-C-S      # TN-C-S | TN-S | TT
   spannung: 230/400 V
 komponenten:
-  - id: X1          # wird zum BMK "-X1"
+  - id: XD1         # wird zum BMK "-XD1"
     typ: hausanschluss
     params: { sicherung: 63, sicherungstyp: NH00 gG }
-  - id: F3
+  - id: FC5
     typ: ls
-    quelle: F2      # vorgeschaltete Komponente (Baumstruktur)
+    quelle: FB1     # vorgeschaltete Komponente (Baumstruktur)
     phase: L1       # bei 1-polig
     params: { charakteristik: B, nennstrom: 16 }
     produkt: { hersteller: Musterfirma, artikel: LS-B16-1P }   # verwendetes Produkt (Tabelle)
-  - id: E1
+  - id: EA1
     typ: verbraucher
     name: Licht EG
-    quelle: F3
+    quelle: FC5
+    params: { verwendung: Beleuchtung }   # bestimmt die Kennbuchstaben (EA)
     kabel: { typ: NYM-J, querschnitt: "3x1,5", laenge: 12 }   # Zuleitung zu dieser Komponente
 editor:             # optional: Positionen im grafischen Editor
-  X1: [0, 0]
+  XD1: [0, 0]
 ```
 
 Felder je Komponente: `id`, `fest` (ID festschreiben), `typ`, `name`, `quelle`, `pole` (1|3), `phase` (L1|L2|L3), `kabel`, `produkt` (`hersteller`, `artikel`), `params`.
@@ -75,30 +76,30 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 
 ### Typen (Bibliothek)
 
-| typ | Bedeutung | wichtige params |
-|---|---|---|
-| `hausanschluss` | HAK mit Vorsicherung | sicherung, sicherungstyp, netzbetreiber |
-| `hlak` | Hauptleiteranschlussklemme (Einspeisekette) | querschnitt, nennstrom |
-| `zaehler` | Zähler | art (Bezug/Zweirichtung/Erzeugung/Unterzähler), zaehlernummer, messkonzept |
-| `sls` | SLS-Schalter | nennstrom |
-| `trennschalter` | Lasttrennschalter | nennstrom |
-| `sicherung` | Schmelzsicherung | nennstrom, bauform |
-| `rcd` | FI-Schutzschalter | nennstrom, fehlerstrom, rcdtyp |
-| `ls` | Leitungsschutzschalter | charakteristik, nennstrom |
-| `rcbo` | FI/LS | charakteristik, nennstrom, fehlerstrom, rcdtyp |
-| `spd` | Überspannungsschutz | spdtyp |
-| `wechselrichter` | PV-Wechselrichter | leistung, hersteller, hybrid |
-| `pv_generator` | PV-Generator (DC) | leistung, module, strings |
-| `speicher` | Batteriespeicher (DC, wenn unter Wechselrichter) | kapazitaet, leistung |
-| `wallbox` | Wallbox | leistung, steuerbar |
-| `waermepumpe` | Wärmepumpe | leistung, steuerbar |
-| `verbraucher` | Verbraucher / Stromkreis | leistung |
-| `steuerbox` | Steuerbox / Rundsteuerempfänger | art |
-| `smgw` | Smart-Meter-Gateway | hersteller |
-| `sammelschiene` | Sammelschiene (Abgänge hängen daran) | nennstrom, querschnitt |
-| `unterverteilung` | Unterverteilung | ort |
+| typ | Bedeutung | Kennbuchstaben | wichtige params |
+|---|---|---|---|
+| `hausanschluss` | HAK mit Vorsicherung | XD | sicherung, sicherungstyp, netzbetreiber |
+| `hlak` | Hauptleiteranschlussklemme (Einspeisekette) | XD | querschnitt, nennstrom |
+| `zaehler` | Zähler | PG | art (Bezug/Zweirichtung/Erzeugung/Unterzähler), zaehlernummer, messkonzept |
+| `sls` | SLS-Schalter | FC | nennstrom |
+| `trennschalter` | Lasttrennschalter | QB | nennstrom |
+| `sicherung` | Schmelzsicherung | FC | nennstrom, bauform |
+| `rcd` | FI-Schutzschalter | FB | nennstrom, fehlerstrom, rcdtyp |
+| `ls` | Leitungsschutzschalter | FC | charakteristik, nennstrom |
+| `rcbo` | FI/LS | FB | charakteristik, nennstrom, fehlerstrom, rcdtyp |
+| `spd` | Überspannungsschutz | FA | spdtyp |
+| `wechselrichter` | PV-Wechselrichter | TB | leistung, modell, hybrid |
+| `pv_generator` | PV-Generator (DC) | GC | leistung, module, strings |
+| `speicher` | Batteriespeicher (DC, wenn unter Wechselrichter) | CC | kapazitaet, leistung |
+| `wallbox` | Wallbox | XD | leistung, steuerbar |
+| `waermepumpe` | Wärmepumpe | EG | leistung, steuerbar |
+| `verbraucher` | Verbraucher / Stromkreis | je Verwendung: XD Steckdosen, EA Beleuchtung, EB Heizung/Herd, MA Motor | verwendung, leistung |
+| `steuerbox` | Steuerbox / Rundsteuerempfänger | KE | art |
+| `smgw` | Smart-Meter-Gateway | KE | modell |
+| `sammelschiene` | Sammelschiene (Abgänge hängen daran) | WD | nennstrom, querschnitt |
+| `unterverteilung` | Unterverteilung | UC | ort |
 
-Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
+Die Kennbuchstaben (Klasse + Unterklasse) folgen DIN EN IEC 81346-2:2019. Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
 
 ### Ungezählter Bereich (Vorzählerbereich)
 
@@ -106,12 +107,12 @@ Komponenten, deren `quelle` der Hausanschluss (oder ein anderes Gerät der Einsp
 rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. Überspannungsschutz und ein LS 6 A für Steuerbox und SMGW:
 
 ```yaml
-  - { id: W1,  typ: sammelschiene, quelle: X1 }
-  - { id: FA1, typ: spd,   quelle: W1 }
-  - { id: Q1,  typ: sls,   quelle: W1 }   # weiter zum Zähler P1, danach HLAK X2
-  - { id: F1,  typ: ls,    quelle: W1, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
-  - { id: K1,  typ: smgw,      quelle: F1 }
-  - { id: K2,  typ: steuerbox, quelle: F1 }
+  - { id: WD1, typ: sammelschiene, quelle: XD1 }
+  - { id: FA1, typ: spd,   quelle: WD1 }
+  - { id: FC1, typ: sls,   quelle: WD1 }   # weiter zum Zähler PG1, danach HLAK XD2
+  - { id: FC2, typ: ls,    quelle: WD1, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
+  - { id: KE1, typ: smgw,      quelle: FC2 }
+  - { id: KE2, typ: steuerbox, quelle: FC2 }
 ```
 
 Die Einspeisekette läuft über Sammelschiene, SLS, Zähler, HLAK, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
@@ -122,8 +123,8 @@ Kommunikationsleitungen stehen getrennt von der Energieversorgung in `datenverbi
 
 ```yaml
 datenverbindungen:
-  - { von: K2, nach: P1, art: LMN }   # SMGW – Zähler
-  - { von: K1, nach: K2, art: CLS }   # Steuerbox – SMGW
+  - { von: KE1, nach: PG1, art: LMN }   # SMGW – Zähler
+  - { von: KE2, nach: KE1, art: CLS }   # Steuerbox – SMGW
 ```
 
 Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, SMGW, Steuerbox, Wechselrichter, Speicher, Wallbox, Wärmepumpe) violette Anschlüsse links/rechts. Eine Verbindung von rechts nach links erzeugt eine Datenverbindung; die Art (LMN, CLS, Modbus …) lässt sich in den Eigenschaften bearbeiten. Für SMGW–Zähler und SMGW–Steuerbox wird LMN bzw. CLS vorbelegt.

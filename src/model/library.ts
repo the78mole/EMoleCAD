@@ -18,8 +18,10 @@ export interface TypDef {
   typ: string
   label: string
   kategorie: 'Einspeisung' | 'Schutz' | 'Erzeugung' | 'Verbraucher' | 'Sonstiges'
-  /** Kennbuchstabe für die Betriebsmittelkennzeichnung (EN 81346) */
+  /** Kennbuchstaben (Klasse + Unterklasse) nach DIN EN IEC 81346-2:2019 */
   bmk: string
+  /** Kennbuchstaben abhängig von den Parametern (z. B. Verwendung eines Stromkreises) */
+  bmkAus?: (p: Record<string, ParamWert>) => string
   farbe: string
   pole: 1 | 3
   poleWaehlbar: boolean
@@ -40,9 +42,17 @@ export interface TypDef {
 
 const n = (v: ParamWert | undefined) => (v === undefined || v === '' ? '' : String(v))
 
+/** Verbraucher-Stromkreise: Kennbuchstaben nach Verwendung (IEC 81346-2:2019) */
+export const VERWENDUNG: Record<string, string> = {
+  Steckdosen: 'XD',   // Verbinden (Niederspannung)
+  Beleuchtung: 'EA',  // Licht erzeugen
+  'Heizung/Herd': 'EB', // elektrisch heizen
+  'Motor/Antrieb': 'MA', // elektrischer Antrieb
+}
+
 export const BIBLIOTHEK: TypDef[] = [
   {
-    typ: 'hausanschluss', label: 'Hausanschluss (HAK)', kategorie: 'Einspeisung', bmk: 'X', farbe: '#6b7280',
+    typ: 'hausanschluss', label: 'Hausanschluss (HAK)', kategorie: 'Einspeisung', bmk: 'XD', farbe: '#6b7280',
     pole: 3, poleWaehlbar: false, kinder: true, wurzel: true, durchgang: true, symbol: 'hak',
     params: [
       { key: 'sicherung', label: 'Vorsicherung', art: 'zahl', einheit: 'A', standard: 63 },
@@ -52,7 +62,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.sicherungstyp)} ${n(p.sicherung)}A`,
   },
   {
-    typ: 'hlak', label: 'HLAK (Hauptleiteranschlussklemme)', kategorie: 'Einspeisung', bmk: 'X', farbe: '#78716c',
+    typ: 'hlak', label: 'HLAK (Hauptleiteranschlussklemme)', kategorie: 'Einspeisung', bmk: 'XD', farbe: '#78716c',
     pole: 3, poleWaehlbar: false, kinder: true, durchgang: true, symbol: 'klemme',
     params: [
       { key: 'querschnitt', label: 'Klemmbereich', art: 'text', einheit: 'mm²', standard: '35' },
@@ -61,7 +71,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `HLAK${p.querschnitt ? ' ' + p.querschnitt + ' mm²' : ''}`,
   },
   {
-    typ: 'zaehler', daten: true, label: 'Zähler', kategorie: 'Einspeisung', bmk: 'P', farbe: '#0ea5e9',
+    typ: 'zaehler', daten: true, label: 'Zähler', kategorie: 'Einspeisung', bmk: 'PG', farbe: '#0ea5e9',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'zaehler',
     params: [
       { key: 'art', label: 'Art', art: 'auswahl', optionen: ['Bezug', 'Zweirichtung', 'Erzeugung', 'Unterzähler'], standard: 'Zweirichtung' },
@@ -71,19 +81,19 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.art)}${p.zaehlernummer ? ' ' + p.zaehlernummer : ''}`,
   },
   {
-    typ: 'sls', label: 'SLS-Schalter', kategorie: 'Schutz', bmk: 'Q', farbe: '#ef4444',
+    typ: 'sls', label: 'SLS-Schalter', kategorie: 'Schutz', bmk: 'FC', farbe: '#ef4444',
     pole: 3, poleWaehlbar: false, kinder: true, durchgang: true, symbol: 'sls',
     params: [{ key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 35 }],
     kurz: (p) => `SLS E ${n(p.nennstrom)}A`,
   },
   {
-    typ: 'trennschalter', label: 'Lasttrennschalter', kategorie: 'Schutz', bmk: 'Q', farbe: '#f97316',
+    typ: 'trennschalter', label: 'Lasttrennschalter', kategorie: 'Schutz', bmk: 'QB', farbe: '#f97316',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'trenner',
     params: [{ key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 63 }],
     kurz: (p) => `${n(p.nennstrom)}A`,
   },
   {
-    typ: 'sicherung', label: 'Schmelzsicherung', kategorie: 'Schutz', bmk: 'F', farbe: '#f59e0b',
+    typ: 'sicherung', label: 'Schmelzsicherung', kategorie: 'Schutz', bmk: 'FC', farbe: '#f59e0b',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'sicherung',
     params: [
       { key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 35 },
@@ -92,7 +102,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.bauform)} ${n(p.nennstrom)}A`,
   },
   {
-    typ: 'rcd', label: 'FI-Schutzschalter (RCD)', kategorie: 'Schutz', bmk: 'F', farbe: '#8b5cf6',
+    typ: 'rcd', label: 'FI-Schutzschalter (RCD)', kategorie: 'Schutz', bmk: 'FB', farbe: '#8b5cf6',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'rcd',
     params: [
       { key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 40 },
@@ -102,7 +112,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.nennstrom)}A/${n(p.fehlerstrom)}mA Typ ${n(p.rcdtyp)}`,
   },
   {
-    typ: 'ls', label: 'Leitungsschutzschalter (LS)', kategorie: 'Schutz', bmk: 'F', farbe: '#dc2626',
+    typ: 'ls', label: 'Leitungsschutzschalter (LS)', kategorie: 'Schutz', bmk: 'FC', farbe: '#dc2626',
     pole: 1, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'ls',
     params: [
       { key: 'charakteristik', label: 'Charakteristik', art: 'auswahl', optionen: ['B', 'C', 'D'], standard: 'B' },
@@ -111,7 +121,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.charakteristik)}${n(p.nennstrom)}`,
   },
   {
-    typ: 'rcbo', label: 'FI/LS (RCBO)', kategorie: 'Schutz', bmk: 'F', farbe: '#a855f7',
+    typ: 'rcbo', label: 'FI/LS (RCBO)', kategorie: 'Schutz', bmk: 'FB', farbe: '#a855f7',
     pole: 1, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'rcbo',
     params: [
       { key: 'charakteristik', label: 'Charakteristik', art: 'auswahl', optionen: ['B', 'C'], standard: 'B' },
@@ -128,7 +138,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `SPD Typ ${n(p.spdtyp)}`,
   },
   {
-    typ: 'wechselrichter', daten: true, label: 'PV-Wechselrichter', kategorie: 'Erzeugung', bmk: 'T', farbe: '#16a34a',
+    typ: 'wechselrichter', daten: true, label: 'PV-Wechselrichter', kategorie: 'Erzeugung', bmk: 'TB', farbe: '#16a34a',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: false, symbol: 'wechselrichter',
     params: [
       { key: 'leistung', label: 'AC-Leistung', art: 'zahl', einheit: 'kW', standard: 10 },
@@ -138,7 +148,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kW${p.modell ? ' ' + p.modell : ''}`,
   },
   {
-    typ: 'pv_generator', label: 'PV-Generator', kategorie: 'Erzeugung', bmk: 'G', farbe: '#22c55e',
+    typ: 'pv_generator', label: 'PV-Generator', kategorie: 'Erzeugung', bmk: 'GC', farbe: '#22c55e',
     pole: 1, poleWaehlbar: false, kinder: false, dc: true, durchgang: false, symbol: 'pvgen',
     params: [
       { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kWp', standard: 9.9 },
@@ -148,7 +158,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kWp, ${n(p.module)} Mod.`,
   },
   {
-    typ: 'speicher', daten: true, label: 'Batteriespeicher', kategorie: 'Erzeugung', bmk: 'G', farbe: '#14b8a6',
+    typ: 'speicher', daten: true, label: 'Batteriespeicher', kategorie: 'Erzeugung', bmk: 'CC', farbe: '#14b8a6',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'speicher',
     params: [
       { key: 'kapazitaet', label: 'Kapazität', art: 'zahl', einheit: 'kWh', standard: 10 },
@@ -157,7 +167,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.kapazitaet)} kWh`,
   },
   {
-    typ: 'wallbox', daten: true, label: 'Wallbox', kategorie: 'Verbraucher', bmk: 'E', farbe: '#2563eb',
+    typ: 'wallbox', daten: true, label: 'Wallbox', kategorie: 'Verbraucher', bmk: 'XD', farbe: '#2563eb',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'wallbox',
     params: [
       { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kW', standard: 11 },
@@ -166,7 +176,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kW${p.steuerbar ? ' §14a' : ''}`,
   },
   {
-    typ: 'waermepumpe', daten: true, label: 'Wärmepumpe', kategorie: 'Verbraucher', bmk: 'E', farbe: '#0891b2',
+    typ: 'waermepumpe', daten: true, label: 'Wärmepumpe', kategorie: 'Verbraucher', bmk: 'EG', farbe: '#0891b2',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'waermepumpe',
     params: [
       { key: 'leistung', label: 'el. Leistung', art: 'zahl', einheit: 'kW', standard: 4 },
@@ -175,25 +185,29 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kW${p.steuerbar ? ' §14a' : ''}`,
   },
   {
-    typ: 'verbraucher', label: 'Verbraucher / Stromkreis', kategorie: 'Verbraucher', bmk: 'E', farbe: '#475569',
+    typ: 'verbraucher', label: 'Verbraucher / Stromkreis', kategorie: 'Verbraucher', bmk: 'XD', farbe: '#475569',
     pole: 1, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'verbraucher',
-    params: [{ key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kW', standard: '' }],
+    params: [
+      { key: 'verwendung', label: 'Verwendung', art: 'auswahl', optionen: Object.keys(VERWENDUNG), standard: 'Steckdosen' },
+      { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kW', standard: '' },
+    ],
+    bmkAus: (p) => VERWENDUNG[String(p.verwendung)] ?? 'XD',
     kurz: (p) => (p.leistung ? `${p.leistung} kW` : ''),
   },
   {
-    typ: 'steuerbox', daten: true, label: 'Steuerbox / Steuergerät', kategorie: 'Sonstiges', bmk: 'K', farbe: '#64748b',
+    typ: 'steuerbox', daten: true, label: 'Steuerbox / Steuergerät', kategorie: 'Sonstiges', bmk: 'KE', farbe: '#64748b',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'steuerbox',
     params: [{ key: 'art', label: 'Art', art: 'auswahl', optionen: ['FNN-Steuerbox', 'Rundsteuerempfänger'], standard: 'FNN-Steuerbox' }],
     kurz: (p) => n(p.art),
   },
   {
-    typ: 'smgw', daten: true, label: 'Smart-Meter-Gateway', kategorie: 'Sonstiges', bmk: 'K', farbe: '#475569',
+    typ: 'smgw', daten: true, label: 'Smart-Meter-Gateway', kategorie: 'Sonstiges', bmk: 'KE', farbe: '#475569',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'smgw',
     params: [{ key: 'modell', label: 'Typ/Modell', art: 'text', standard: '' }],
     kurz: (p) => n(p.modell) || 'SMGW',
   },
   {
-    typ: 'sammelschiene', label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'W', farbe: '#1e293b',
+    typ: 'sammelschiene', label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'WD', farbe: '#1e293b',
     pole: 3, poleWaehlbar: false, kinder: true, durchgang: true, symbol: 'schiene',
     params: [
       { key: 'nennstrom', label: 'Bemessungsstrom', art: 'zahl', einheit: 'A', standard: 63 },
@@ -202,7 +216,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `Sammelschiene${p.nennstrom ? ' ' + p.nennstrom + 'A' : ''}${p.querschnitt ? ' ' + p.querschnitt : ''}`,
   },
   {
-    typ: 'unterverteilung', label: 'Unterverteilung', kategorie: 'Sonstiges', bmk: 'W', farbe: '#334155',
+    typ: 'unterverteilung', label: 'Unterverteilung', kategorie: 'Sonstiges', bmk: 'UC', farbe: '#334155',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'verteiler',
     params: [{ key: 'ort', label: 'Ort', art: 'text', standard: '' }],
     kurz: (p) => n(p.ort),
@@ -222,4 +236,10 @@ export function standardParams(typ: string): Record<string, ParamWert> {
   const out: Record<string, ParamWert> = {}
   for (const p of typDef(typ).params) if (p.standard !== undefined && p.standard !== '') out[p.key] = p.standard
   return out
+}
+
+/** Kennbuchstaben einer Komponente (berücksichtigt parameterabhängige Zuordnung) */
+export function kennbuchstaben(typ: string, params?: Record<string, ParamWert>): string {
+  const d = typDef(typ)
+  return d.bmkAus ? d.bmkAus({ ...standardParams(typ), ...(params ?? {}) }) : d.bmk
 }

@@ -12,151 +12,152 @@ netz:
   form: TN-C-S
   spannung: 230/400 V
 komponenten:
-  - id: X1
+  - id: XD1
     typ: hausanschluss
     name: HAK
     params: { sicherung: 63, sicherungstyp: NH00 gG, netzbetreiber: Stadtwerke }
   # Ungezählter Bereich: Sammelschiene direkt nach dem HAK
-  - id: W1
+  - id: WD1
     typ: sammelschiene
     name: Sammelschiene ungezählt
-    quelle: X1
+    quelle: XD1
     kabel: { typ: NYY-J, querschnitt: 5x16 }
     params: { nennstrom: 63, querschnitt: 12x5 }
   - id: FA1
     typ: spd
     name: Überspannungsschutz
-    quelle: W1
+    quelle: WD1
     params: { spdtyp: 1+2 }
-  - id: F1
+  - id: FC2
     typ: ls
     name: Vorzählerbereich
-    quelle: W1
+    quelle: WD1
     phase: L1
     params: { charakteristik: B, nennstrom: 6 }
-  - id: K1
+  - id: KE1
     typ: smgw
     name: Smart-Meter-Gateway
-    quelle: F1
-  - id: K2
+    quelle: FC2
+  - id: KE2
     typ: steuerbox
     name: Steuerbox
-    quelle: F1
+    quelle: FC2
     params: { art: FNN-Steuerbox }
   # Gezählter Bereich: SLS -> Zähler -> HLAK -> Verteilung
-  - id: Q1
+  - id: FC1
     typ: sls
-    quelle: W1
+    quelle: WD1
     params: { nennstrom: 50 }
-  - id: P1
+  - id: PG1
     typ: zaehler
     name: Zweirichtungszähler
-    quelle: Q1
+    quelle: FC1
     params: { art: Zweirichtung, zaehlernummer: 1EMH0012345678 }
-  - id: X2
+  - id: XD2
     typ: hlak
-    quelle: P1
+    quelle: PG1
     params: { querschnitt: "35", nennstrom: 63 }
-  - id: F2
+  - id: FB1
     typ: rcd
     name: RCD Allgemein
-    quelle: X2
+    quelle: XD2
     params: { nennstrom: 40, fehlerstrom: 30, rcdtyp: A }
-  - id: F6
+  - id: FC5
     typ: ls
-    quelle: F2
+    quelle: FB1
     phase: L1
     params: { charakteristik: B, nennstrom: 10 }
-  - id: E2
+  - id: EA1
     typ: verbraucher
     name: Licht EG
-    quelle: F6
+    quelle: FC5
     kabel: { typ: NYM-J, querschnitt: "3x1,5" }
-  - id: F7
+    params: { verwendung: Beleuchtung }
+  - id: FC6
     typ: ls
-    quelle: F2
+    quelle: FB1
     phase: L2
     params: { charakteristik: B, nennstrom: 16 }
-  - id: E3
+  - id: XD3
     typ: verbraucher
     name: Steckdosen Küche
-    quelle: F7
+    quelle: FC6
     kabel: { typ: NYM-J, querschnitt: "3x2,5" }
-    params: { leistung: 2 }
-  - id: F8
+    params: { verwendung: Steckdosen, leistung: 2 }
+  - id: FC7
     typ: ls
-    quelle: F2
+    quelle: FB1
     phase: L3
     params: { charakteristik: B, nennstrom: 16 }
-  - id: E4
+  - id: XD4
     typ: verbraucher
     name: Steckdosen Bad
-    quelle: F8
+    quelle: FC7
     kabel: { typ: NYM-J, querschnitt: "3x2,5" }
-    params: { leistung: 2 }
-  - id: F9
+    params: { verwendung: Steckdosen, leistung: 2 }
+  - id: FC8
     typ: ls
-    quelle: F2
+    quelle: FB1
     pole: 3
     params: { charakteristik: B, nennstrom: 16 }
-  - id: E5
+  - id: EB1
     typ: verbraucher
     name: Herd
-    quelle: F9
+    quelle: FC8
     kabel: { typ: NYM-J, querschnitt: "5x2,5" }
     pole: 3
-    params: { leistung: 10 }
-  - id: F3
+    params: { verwendung: Heizung/Herd, leistung: 10 }
+  - id: FB2
     typ: rcd
     name: RCD Wallbox
-    quelle: X2
+    quelle: XD2
     params: { nennstrom: 40, fehlerstrom: 30, rcdtyp: A EV }
-  - id: F10
+  - id: FC9
     typ: ls
-    quelle: F3
+    quelle: FB2
     pole: 3
     params: { charakteristik: C, nennstrom: 20 }
-  - id: E6
+  - id: XD5
     typ: wallbox
     name: Wallbox Carport
-    quelle: F10
+    quelle: FC9
     kabel: { typ: NYM-J, querschnitt: 5x6, laenge: 15 }
     params: { leistung: 11, steuerbar: true }
-  - id: F4
+  - id: FC3
     typ: ls
-    quelle: X2
+    quelle: XD2
     pole: 3
     params: { charakteristik: B, nennstrom: 20 }
-  - id: T1
+  - id: TB1
     typ: wechselrichter
     name: PV-Wechselrichter
-    quelle: F4
+    quelle: FC3
     kabel: { typ: NYM-J, querschnitt: 5x4 }
     params: { leistung: 10, modell: Hybrid-WR, hybrid: true }
-  - id: G1
+  - id: GC1
     typ: pv_generator
     name: PV-Dach Süd
-    quelle: T1
+    quelle: TB1
     kabel: { typ: H1Z2Z2-K, querschnitt: 1x6 }
     params: { leistung: 9.9, module: 22, strings: 2 }
-  - id: G2
+  - id: CC1
     typ: speicher
     name: Batteriespeicher
-    quelle: T1
+    quelle: TB1
     params: { kapazitaet: 10, leistung: 5 }
-  - id: F5
+  - id: FC4
     typ: ls
-    quelle: X2
+    quelle: XD2
     pole: 3
     params: { charakteristik: C, nennstrom: 16 }
-  - id: E1
+  - id: EG1
     typ: waermepumpe
     name: Wärmepumpe
-    quelle: F5
+    quelle: FC4
     kabel: { typ: NYM-J, querschnitt: "5x2,5" }
     params: { leistung: 4, steuerbar: true }
 # Informationsverbindungen (strichpunktiert im Plan)
 datenverbindungen:
-  - { von: K1, nach: P1, art: LMN }
-  - { von: K2, nach: K1, art: CLS }
+  - { von: KE1, nach: PG1, art: LMN }
+  - { von: KE2, nach: KE1, art: CLS }
 `

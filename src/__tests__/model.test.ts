@@ -13,7 +13,7 @@ describe('YAML', () => {
   })
   it('Querschnitt mit Komma bleibt erhalten', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    expect(p.komponenten.find((k) => k.id === 'E2')!.kabel!.querschnitt).toBe('3x1,5')
+    expect(p.komponenten.find((k) => k.id === 'EA1')!.kabel!.querschnitt).toBe('3x1,5')
   })
   it('meldet Syntaxfehler mit Zeile', () => {
     try { parseYaml('komponenten:\n  - id: X1\n   typ: [') ; expect.fail() } catch (e) {
@@ -29,9 +29,9 @@ describe('Analyse', () => {
   it('Beispiel ist fehlerfrei und leitet Leiter ab', () => {
     const a = analysiere(parseYaml(BEISPIEL_YAML))
     expect(a.meldungen.filter((m) => m.stufe !== 'info')).toEqual([])
-    expect(a.knoten.get('E3')!.leiter).toEqual(['L2', 'N', 'PE'])
-    expect(a.knoten.get('G1')!.leiter).toEqual(['L+', 'L-'])
-    expect(a.knoten.get('E5')!.leiter).toHaveLength(5)
+    expect(a.knoten.get('XD3')!.leiter).toEqual(['L2', 'N', 'PE'])
+    expect(a.knoten.get('GC1')!.leiter).toEqual(['L+', 'L-'])
+    expect(a.knoten.get('XD5')!.leiter).toHaveLength(5)
   })
   it('erkennt Kreise und fehlende Quellen', () => {
     const a = analysiere(parseYaml(`komponenten:
@@ -54,11 +54,11 @@ describe('Analyse', () => {
 describe('Operationen', () => {
   it('hinzufügen, umbenennen, löschen', () => {
     let p = parseYaml(BEISPIEL_YAML)
-    const r = hinzufuegen(p, 'ls', { x: 0, y: 0 }, 'Q1')
-    expect(r.id).toBe('F11')
-    p = aktualisieren(r.projekt, 'Q1', { ...r.projekt.komponenten.find((k) => k.id === 'Q1')!, id: 'Q9' })
+    const r = hinzufuegen(p, 'ls', { x: 0, y: 0 }, 'FC1')
+    expect(r.id).toBe('FC10')
+    p = aktualisieren(r.projekt, 'FC1', { ...r.projekt.komponenten.find((k) => k.id === 'FC1')!, id: 'Q9' })
     expect(p.komponenten.filter((k) => k.quelle === 'Q9').length).toBeGreaterThan(0)
-    expect(istVorfahr(p, 'Q9', 'E1')).toBe(true)
+    expect(istVorfahr(p, 'Q9', 'EG1')).toBe(true)
     p = entfernen(p, ['Q9'])
     expect(p.komponenten.some((k) => k.quelle === 'Q9')).toBe(false)
   })
@@ -67,9 +67,9 @@ describe('Operationen', () => {
 describe('Datenverbindungen', () => {
   it('werden gelesen, beim Umbenennen nachgezogen und beim Löschen entfernt', () => {
     let p = parseYaml(BEISPIEL_YAML)
-    expect(p.datenverbindungen).toEqual([{ von: 'K1', nach: 'P1', art: 'LMN' }, { von: 'K2', nach: 'K1', art: 'CLS' }])
-    p = aktualisieren(p, 'K1', { ...p.komponenten.find((k) => k.id === 'K1')!, id: 'K9' })
-    expect(p.datenverbindungen!.every((d) => d.von !== 'K1' && d.nach !== 'K1')).toBe(true)
+    expect(p.datenverbindungen).toEqual([{ von: 'KE1', nach: 'PG1', art: 'LMN' }, { von: 'KE2', nach: 'KE1', art: 'CLS' }])
+    p = aktualisieren(p, 'KE1', { ...p.komponenten.find((k) => k.id === 'KE1')!, id: 'K9' })
+    expect(p.datenverbindungen!.every((d) => d.von !== 'KE1' && d.nach !== 'KE1')).toBe(true)
     p = entfernen(p, ['K9'])
     expect(p.datenverbindungen).toEqual([])
   })
@@ -85,12 +85,12 @@ describe('Neu nummerieren', () => {
   it('vergibt Kennzeichen von links nach rechts in Baumreihenfolge', () => {
     let p = parseYaml(BEISPIEL_YAML)
     // Steuerbox im Editor links vom SMGW platzieren -> bekommt die kleinere Nummer
-    p = { ...p, editor: { K1: { x: 500, y: 0 }, K2: { x: 100, y: 0 } } }
+    p = { ...p, editor: { KE1: { x: 500, y: 0 }, KE2: { x: 100, y: 0 } } }
     const n = neuNummerieren(p)
     const typ = (id: string) => n.komponenten.find((k) => k.id === id)!.typ
-    expect(typ('K1')).toBe('steuerbox')
-    expect(typ('K2')).toBe('smgw')
-    expect(n.datenverbindungen).toEqual([{ von: 'K2', nach: 'P1', art: 'LMN' }, { von: 'K1', nach: 'K2', art: 'CLS' }])
+    expect(typ('KE1')).toBe('steuerbox')
+    expect(typ('KE2')).toBe('smgw')
+    expect(n.datenverbindungen).toEqual([{ von: 'KE2', nach: 'PG1', art: 'LMN' }, { von: 'KE1', nach: 'KE2', art: 'CLS' }])
     expect(new Set(n.komponenten.map((k) => k.id)).size).toBe(n.komponenten.length)
     expect(analysiere(n).meldungen.filter((m) => m.stufe !== 'info')).toEqual([])
     // RCD vor seinen LS
@@ -102,11 +102,12 @@ describe('Neu nummerieren', () => {
     const n = neuNummerieren({ ...p, editor: undefined })
     const typ = (id: string) => n.komponenten.find((k) => k.id === id)!.typ
     expect(typ('FA1')).toBe('spd')
-    expect(typ('F1')).toBe('ls')
+    expect(typ('FC1')).toBe('sls')
+    expect(typ('FC2')).toBe('ls')
     // alle Geräte der oberen Verteilerreihe (RCDs, LS direkt an der HLAK) vor den LS darunter
-    const nr = (k: { id: string }) => Number(k.id.slice(1))
-    const oben = n.komponenten.filter((k) => k.quelle === 'X2').map(nr)
-    const unten = n.komponenten.filter((k) => k.typ === 'ls' && k.quelle !== 'X2' && k.quelle !== 'W1').map(nr)
+    const nr = (k: { id: string }) => Number(k.id.slice(2))
+    const oben = n.komponenten.filter((k) => k.quelle === 'XD2').map(nr)
+    const unten = n.komponenten.filter((k) => k.typ === 'ls' && k.quelle !== 'XD2' && k.quelle !== 'WD1').map(nr)
     expect(Math.max(...oben)).toBeLessThan(Math.min(...unten))
   })
 })
@@ -114,26 +115,38 @@ describe('Neu nummerieren', () => {
 describe('Festgeschriebene IDs', () => {
   it('bleiben beim Neu nummerieren erhalten und werden mitgezählt', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    // LS 6 A im Vorzählerbereich als F001 festschreiben
+    // LS 6 A im Vorzählerbereich als FC001 festschreiben
     const komponenten = p.komponenten.map((k) =>
-      k.id === 'F1' ? { ...k, id: 'F001', fest: true } : k.quelle === 'F1' ? { ...k, quelle: 'F001' } : k)
+      k.id === 'FC2' ? { ...k, id: 'FC001', fest: true } : k.quelle === 'FC2' ? { ...k, quelle: 'FC001' } : k)
     const n = neuNummerieren({ ...p, komponenten, editor: undefined })
-    const f001 = n.komponenten.find((k) => k.id === 'F001')!
+    const f001 = n.komponenten.find((k) => k.id === 'FC001')!
     expect(f001.fest).toBe(true)
     expect(f001.params?.nennstrom).toBe(6)
-    expect(n.komponenten.filter((k) => k.quelle === 'F001')).toHaveLength(2)
-    // die übrigen LS/RCD beginnen wieder bei F1
-    expect(n.komponenten.find((k) => k.id === 'F1')!.typ).toBe('rcd')
+    expect(n.komponenten.filter((k) => k.quelle === 'FC001')).toHaveLength(2)
+    // die übrigen Überstromschutzgeräte beginnen wieder bei FC1
+    expect(n.komponenten.find((k) => k.id === 'FC1')!.typ).toBe('sls')
+    expect(n.komponenten.find((k) => k.id === 'FC2')!.typ).toBe('ls')
     expect(parseYaml(toYaml(n))).toEqual(n)
   })
   it('werden nicht doppelt vergeben', () => {
     const p = parseYaml(`komponenten:
   - { id: X1, typ: hausanschluss }
-  - { id: F2, typ: ls, quelle: X1, fest: true }
+  - { id: FC2, typ: ls, quelle: X1, fest: true }
   - { id: F7, typ: ls, quelle: X1 }
   - { id: F8, typ: ls, quelle: X1 }`)
     const ids = neuNummerieren(p).komponenten.map((k) => k.id)
-    expect(ids).toEqual(['X1', 'F2', 'F1', 'F3'])
+    expect(ids).toEqual(['XD1', 'FC2', 'FC1', 'FC3'])
+  })
+})
+
+describe('Kennbuchstaben IEC 81346-2', () => {
+  it('Verbraucher je nach Verwendung', () => {
+    let p = parseYaml('komponenten:\n  - { id: XD1, typ: hausanschluss }')
+    for (const v of ['Beleuchtung', 'Heizung/Herd', undefined]) {
+      const r = hinzufuegen(p, 'verbraucher', { x: 0, y: 0 }, 'XD1')
+      p = v ? aktualisieren(r.projekt, r.id, { ...r.projekt.komponenten.find((k) => k.id === r.id)!, params: { verwendung: v } }) : r.projekt
+    }
+    expect(neuNummerieren(p).komponenten.map((k) => k.id).sort()).toEqual(['EA1', 'EB1', 'XD1', 'XD2'])
   })
 })
 
@@ -160,7 +173,7 @@ describe('Plan', () => {
     for (const modus of ['einpolig', 'allpolig'] as const) {
       const plan = zeichnePlan(a, { modus, farbig: true, netz: p.netz })
       expect(plan.breite).toBeGreaterThan(100)
-      expect(plan.inhalt).toContain('-F10')
+      expect(plan.inhalt).toContain('-FC9')
       expect(plan.inhalt).not.toContain('NaN')
       expect(plan.inhalt).toContain('Stromkreis')
       const baum = zeichnePlan(a, { modus, farbig: true, netz: p.netz, anordnung: 'baum' })

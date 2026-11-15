@@ -1,12 +1,11 @@
 import { analysiere, naechsteId } from './analyse'
-import { standardParams, typDef } from './library'
+import { kennbuchstaben, standardParams } from './library'
 import type { Komponente, Projekt } from './types'
 
 /** Reine Funktionen, die ein neues Projekt zurückgeben (unveränderlich). */
 
 export function hinzufuegen(p: Projekt, typ: string, pos?: { x: number; y: number }, quelle?: string): { projekt: Projekt; id: string } {
-  const def = typDef(typ)
-  const id = naechsteId(p, def.bmk)
+  const id = naechsteId(p, kennbuchstaben(typ))
   const k: Komponente = { id, typ }
   if (quelle) k.quelle = quelle
   const params = standardParams(typ)
@@ -109,7 +108,7 @@ export function neuNummerieren(p: Projekt): Projekt {
     z.sort((x, y) => pos(x.id).x - pos(y.id).x)
     for (const k of z) {
       if (k.fest) { neu.set(k.id, k.id); continue }
-      const pre = typDef(k.typ).bmk
+      const pre = kennbuchstaben(k.typ, k.params)
       let id: string
       do { zaehler[pre] = (zaehler[pre] ?? 0) + 1; id = `${pre}${zaehler[pre]}` } while (festeIds.has(id))
       neu.set(k.id, id)
