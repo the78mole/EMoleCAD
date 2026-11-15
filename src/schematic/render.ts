@@ -277,9 +277,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
 
   // Verweise auf andere Blätter sind keine echten Anschlusspunkte für Hilfsleitungen
   const eigene = new Map([...lagen].filter(([n]) => !fremd(n.k.id)))
-  datenLinien(svg, eigene, o, allp, cx)
+  const datenRechts = datenLinien(svg, eigene, o, allp, cx)
   const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
-  breite = Math.max(breite, pa.rechts + 4)
+  breite = Math.max(breite, pa.rechts + 4, datenRechts + 4)
 
   let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4)
   if (hager && o.tabelle !== false) {
@@ -340,9 +340,11 @@ function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: 
 
 type Seite = 'oben' | 'unten' | 'kette' | 'rechts'
 
-function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx) {
+/** Zeichnet die Informationsverbindungen; gibt die rechteste belegte x-Position zurück */
+function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx): number {
   const liste = o.daten ?? []
-  if (!liste.length) return
+  let rechts = 0
+  if (!liste.length) return rechts
   const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
   const farbe = allp && !o.farbig ? '#000' : '#8e24aa'
   const seite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
@@ -388,7 +390,9 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       const ende = [q.s[0] + 4, q.s[1]]
       svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
       svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
-      svg.text(ende[0] + 0.8, ende[1] + 0.6, `${d.art ? d.art + ' ' : ''}→ ${ziel.bmk} (Blatt ${ziel.blatt})`, { groesse: 1.7, farbe })
+      const text = `${d.art ? d.art + ' ' : ''}→ ${ziel.bmk} (Blatt ${ziel.blatt})`
+      svg.text(ende[0] + 0.8, ende[1] + 0.6, text, { groesse: 1.7, farbe })
+      rechts = Math.max(rechts, ende[0] + 0.8 + text.length * 0.9)
       return
     }
     if (!a || !b || a === b) return
@@ -417,6 +421,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
   })
+  return rechts
 }
 
 // ---------- Potentialausgleich ----------

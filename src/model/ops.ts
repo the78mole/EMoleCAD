@@ -143,14 +143,17 @@ export function autoLayout(p: Projekt): Record<string, { x: number; y: number }>
   const BX = 210, BY = 130
   const frei: number[] = []
   const istKette = (n: K) => KETTE.includes(n.k.typ) && n.kinder.length > 0
+  const mitZaehler = (n: K): boolean => n.k.typ === 'zaehler' || n.kinder.some(mitZaehler)
   const setze = (n: K, min: number): number => {
     min = Math.max(min, frei[n.tiefe] ?? 0)
     let x = min
     if (n.kinder.length) {
       // Hauptstrang zuerst, dann die übrigen Geräte (z.B. ungezählter Bereich mit SMGW und Steuerbox),
       // weitere Zählerstränge zuletzt, damit der Netzbereich beisammen bleibt
+      // Hauptstrang wie im Plan: der erste Kettenzweig mit nachgelagertem Zähler, sonst der erste
       const ketten = n.kinder.filter(istKette)
-      const kinder = [...ketten.slice(0, 1), ...n.kinder.filter((c) => !istKette(c)), ...ketten.slice(1)]
+      const haupt = ketten.find(mitZaehler) ?? ketten[0]
+      const kinder = [...(haupt ? [haupt] : []), ...n.kinder.filter((c) => !istKette(c)), ...ketten.filter((c) => c !== haupt)]
       x = setze(kinder[0], min)
       kinder.slice(1).forEach((c) => setze(c, x))
     }

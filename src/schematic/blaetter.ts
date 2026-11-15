@@ -16,7 +16,10 @@ interface Teil {
 function weitereZaehlerstraenge(w: Knoten): Knoten[] {
   const kette = einspeiseKette(w)
   const inKette = new Set(kette)
-  return kette.slice(0, -1).flatMap((k) => k.kinder.filter((c) => !inKette.has(c) && hatZaehler(c)))
+  // nur Abzweige vor dem Hauptzähler; Unterzähler hinter ihm bleiben im Verteilerbaum
+  const zaehler = kette.findIndex((k) => k.k.typ === 'zaehler')
+  const vor = zaehler >= 0 ? kette.slice(0, zaehler) : kette.slice(0, -1)
+  return vor.flatMap((k) => k.kinder.filter((c) => !inKette.has(c) && hatZaehler(c)))
 }
 
 /** Teilansicht der Analyse: kopiert die Knoten, ausgelagerte Teilbäume bleiben als kinderlose Verweise stehen */

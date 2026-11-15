@@ -43,3 +43,30 @@ describe('Blattaufteilung', () => {
     expect(pos.KE2.x).toBeLessThan(pos.FC10.x)
   })
 })
+
+describe('Blattaufteilung – Randfälle', () => {
+  it('Unterzähler hinter dem Hauptzähler bleibt auf Blatt 1', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    // Kette läuft hinter dem Zähler über XD2 zum Trennschalter weiter, der Unterzähler zweigt an XD2 ab
+    p.komponenten.push(
+      { id: 'QB1', typ: 'trennschalter', quelle: 'XD2' },
+      { id: 'EZ2', typ: 'verbraucher', quelle: 'QB1' },
+      { id: 'FC12', typ: 'ls', quelle: 'XD2', pole: 3 },
+      { id: 'PG3', typ: 'zaehler', name: 'Unterzähler Wallbox', quelle: 'FC12' },
+    )
+    expect(blattTeilung(analysiere(p), {})).toHaveLength(1)
+  })
+  it('Editor nimmt den Kettenzweig mit Zähler als Hauptstrang, auch wenn er nicht zuerst steht', () => {
+    const p = modul2()
+    // Zweig ohne Zähler vor den Hauptstrang setzen
+    p.komponenten.splice(2, 0, { id: 'FC11', typ: 'sls', quelle: 'WD1' }, { id: 'EZ1', typ: 'verbraucher', quelle: 'FC11' })
+    const pos = autoLayout(p)
+    expect(pos.FC1.x).toBeLessThan(pos.FC11.x)
+  })
+  it('Verweistext vergrößert die Planbreite, damit nichts abgeschnitten wird', () => {
+    const p = modul2()
+    const [, b2] = zeichnePlaene(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, daten: p.datenverbindungen, tabelle: false })
+    const x = Number(/<text x="([\d.]+)"[^>]*>LMN → -KE1/.exec(b2.inhalt)![1])
+    expect(b2.breite).toBeGreaterThan(x + 15)
+  })
+})
