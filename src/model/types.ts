@@ -5,6 +5,11 @@ export type Netzform = 'TN-C-S' | 'TN-S' | 'TT'
 
 export type ParamWert = string | number | boolean
 
+export interface Produkt {
+  hersteller?: string
+  artikel?: string
+}
+
 export interface Kabel {
   typ?: string
   querschnitt?: string
@@ -25,6 +30,8 @@ export interface Komponente {
   /** Phase bei einphasigen Komponenten */
   phase?: Phase
   kabel?: Kabel
+  /** Verwendetes Produkt */
+  produkt?: Produkt
   params?: Record<string, ParamWert>
 }
 

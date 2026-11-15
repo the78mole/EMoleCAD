@@ -132,7 +132,7 @@ komponenten:
     name: PV-Wechselrichter
     quelle: F4
     kabel: { typ: NYM-J, querschnitt: 5x4 }
-    params: { leistung: 10, hersteller: Hybrid-WR, hybrid: true }
+    params: { leistung: 10, modell: Hybrid-WR, hybrid: true }
   - id: G1
     typ: pv_generator
     name: PV-Dach Süd

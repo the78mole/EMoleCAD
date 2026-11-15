@@ -60,6 +60,7 @@ komponenten:
     quelle: F2      # vorgeschaltete Komponente (Baumstruktur)
     phase: L1       # bei 1-polig
     params: { charakteristik: B, nennstrom: 16 }
+    produkt: { hersteller: Musterfirma, artikel: LS-B16-1P }   # verwendetes Produkt (Tabelle)
   - id: E1
     typ: verbraucher
     name: Licht EG
@@ -69,7 +70,7 @@ editor:             # optional: Positionen im grafischen Editor
   X1: [0, 0]
 ```
 
-Felder je Komponente: `id`, `typ`, `name`, `quelle`, `pole` (1|3), `phase` (L1|L2|L3), `kabel`, `params`.
+Felder je Komponente: `id`, `fest` (ID festschreiben), `typ`, `name`, `quelle`, `pole` (1|3), `phase` (L1|L2|L3), `kabel`, `produkt` (`hersteller`, `artikel`), `params`.
 Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird automatisch einphasig angeschlossen.
 
 ### Typen (Bibliothek)

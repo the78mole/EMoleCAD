@@ -137,6 +137,22 @@ describe('Festgeschriebene IDs', () => {
   })
 })
 
+describe('Produkt', () => {
+  it('Hersteller und Artikelnummer: YAML und Tabelle', () => {
+    const p = parseYaml(`komponenten:
+  - { id: X1, typ: hausanschluss }
+  - { id: F1, typ: ls, quelle: X1 }
+  - { id: E1, typ: verbraucher, quelle: F1, produkt: { hersteller: Testfirma, artikel: AB-123 } }
+  - { id: T1, typ: wechselrichter, quelle: F1, params: { hersteller: AltTyp } }`)
+    expect(p.komponenten[2].produkt).toEqual({ hersteller: 'Testfirma', artikel: 'AB-123' })
+    expect(p.komponenten[3].params).toEqual({ modell: 'AltTyp' })
+    expect(toYaml(p)).toContain('produkt: { hersteller: Testfirma, artikel: AB-123 }')
+    const plan = zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, tabelle: true })
+    expect(plan.inhalt).toContain('Artikelnummer')
+    expect(plan.inhalt).toContain('AB-123')
+  })
+})
+
 describe('Plan', () => {
   it('erzeugt einpoligen und allpoligen Plan', () => {
     const p = parseYaml(BEISPIEL_YAML)

@@ -35,6 +35,12 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
     else kabel[key] = key === 'laenge' ? Number(wert) : wert
     setze({ kabel: Object.keys(kabel).length ? kabel : undefined })
   }
+  const setzeProdukt = (key: 'hersteller' | 'artikel', wert: string) => {
+    const produkt = { ...(k.produkt ?? {}) }
+    if (wert === '') delete produkt[key]
+    else produkt[key] = wert
+    setze({ produkt: Object.keys(produkt).length ? produkt : undefined })
+  }
   const idUebernehmen = () => {
     const neu = idEntwurf.trim()
     if (!neu || neu === id) return setIdEntwurf(id)
@@ -124,6 +130,11 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
           </label>
         )
       })}
+      <div className="eig-abschnitt">Produkt</div>
+      <div className="reihe">
+        <label>Hersteller<input value={k.produkt?.hersteller ?? ''} placeholder="z. B. Hager" onChange={(e) => setzeProdukt('hersteller', e.target.value)} /></label>
+        <label>Artikelnummer<input value={k.produkt?.artikel ?? ''} placeholder="z. B. MBN116" onChange={(e) => setzeProdukt('artikel', e.target.value)} /></label>
+      </div>
       {!def.wurzel && (
         <>
           <div className="eig-abschnitt">Zuleitung</div>

@@ -91,12 +91,24 @@ function komponenteAus(k: unknown, i: number): Komponente {
       if (k.kabel.laenge !== undefined) out.kabel.laenge = Number(k.kabel.laenge)
     }
   }
+  if (k.produkt !== undefined) {
+    if (!istObjekt(k.produkt)) throw new YamlFehler(`Komponente "${k.id}": produkt muss ein Objekt mit hersteller/artikel sein`)
+    const pr: Komponente['produkt'] = {}
+    if (k.produkt.hersteller !== undefined && k.produkt.hersteller !== '') pr.hersteller = String(k.produkt.hersteller)
+    if (k.produkt.artikel !== undefined && k.produkt.artikel !== '') pr.artikel = String(k.produkt.artikel)
+    if (Object.keys(pr).length) out.produkt = pr
+  }
   if (k.params !== undefined) {
     if (!istObjekt(k.params)) throw new YamlFehler(`Komponente "${k.id}": params muss ein Objekt sein`)
     out.params = {}
     for (const [pk, pv] of Object.entries(k.params)) {
       if (pv === null || pv === undefined) continue
       out.params[pk] = (typeof pv === 'object' ? String(pv) : pv) as ParamWert
+    }
+    // ältere Dateien: Wechselrichter/SMGW hatten „hersteller“ als Typangabe
+    if (['wechselrichter', 'smgw'].includes(out.typ) && 'hersteller' in out.params && !('modell' in out.params)) {
+      out.params.modell = out.params.hersteller
+      delete out.params.hersteller
     }
   }
   return out
@@ -114,6 +126,7 @@ export function toYaml(p: Projekt): string {
       if (k.pole) o.pole = k.pole
       if (k.phase) o.phase = k.phase
       if (k.kabel && Object.keys(k.kabel).length) o.kabel = k.kabel
+      if (k.produkt && Object.keys(k.produkt).length) o.produkt = k.produkt
       if (k.params && Object.keys(k.params).length) o.params = k.params
       return o
     }),
@@ -124,7 +137,7 @@ export function toYaml(p: Projekt): string {
   YAML.visit(doc, {
     Pair(_, pair) {
       const key = (pair.key as YAML.Scalar)?.value
-      if ((key === 'params' || key === 'kabel') && YAML.isMap(pair.value)) pair.value.flow = true
+      if ((key === 'params' || key === 'kabel' || key === 'produkt') && YAML.isMap(pair.value)) pair.value.flow = true
       if (key === 'datenverbindungen' && YAML.isSeq(pair.value)) pair.value.items.forEach((it) => { if (YAML.isMap(it)) it.flow = true })
     },
   })

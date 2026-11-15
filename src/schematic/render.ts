@@ -361,6 +361,8 @@ function tabelle(svg: Svg, spalten: Lage[], x0: number, kopfEnde: number, y0: nu
     { titel: 'Querschnitt', wert: (n) => (n.k.kabel?.querschnitt ? `${n.k.kabel.querschnitt} mm²` : '') },
     { titel: 'Länge', wert: (n) => (n.k.kabel?.laenge ? `${n.k.kabel.laenge} m` : '') },
     { titel: 'Kenndaten', wert: (n) => n.def.kurz?.(n.k.params ?? {}) ?? '', hoch: true },
+    { titel: 'Hersteller', wert: (n) => n.k.produkt?.hersteller ?? '' },
+    { titel: 'Artikelnummer', wert: (n) => n.k.produkt?.artikel ?? '' },
   ]
   const x1 = Math.max(...spalten.map((s) => s.slotX0! + s.slotW!))
   const gr = 1.8

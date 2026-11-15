@@ -132,10 +132,10 @@ export const BIBLIOTHEK: TypDef[] = [
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: false, symbol: 'wechselrichter',
     params: [
       { key: 'leistung', label: 'AC-Leistung', art: 'zahl', einheit: 'kW', standard: 10 },
-      { key: 'hersteller', label: 'Hersteller/Typ', art: 'text', standard: '' },
+      { key: 'modell', label: 'Typ/Modell', art: 'text', standard: '' },
       { key: 'hybrid', label: 'Hybrid (Speicher)', art: 'bool', standard: false },
     ],
-    kurz: (p) => `${n(p.leistung)} kW${p.hersteller ? ' ' + p.hersteller : ''}`,
+    kurz: (p) => `${n(p.leistung)} kW${p.modell ? ' ' + p.modell : ''}`,
   },
   {
     typ: 'pv_generator', label: 'PV-Generator', kategorie: 'Erzeugung', bmk: 'G', farbe: '#22c55e',
@@ -189,8 +189,8 @@ export const BIBLIOTHEK: TypDef[] = [
   {
     typ: 'smgw', daten: true, label: 'Smart-Meter-Gateway', kategorie: 'Sonstiges', bmk: 'K', farbe: '#475569',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'smgw',
-    params: [{ key: 'hersteller', label: 'Hersteller/Typ', art: 'text', standard: '' }],
-    kurz: (p) => n(p.hersteller) || 'SMGW',
+    params: [{ key: 'modell', label: 'Typ/Modell', art: 'text', standard: '' }],
+    kurz: (p) => n(p.modell) || 'SMGW',
   },
   {
     typ: 'sammelschiene', label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'W', farbe: '#1e293b',
