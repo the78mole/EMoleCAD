@@ -4,6 +4,7 @@
 [![Pages](https://github.com/the78mole/EMoleCAD/actions/workflows/pages.yml/badge.svg)](https://the78mole.github.io/EMoleCAD/)
 [![CodeQL](https://github.com/the78mole/EMoleCAD/actions/workflows/codeql.yml/badge.svg)](https://github.com/the78mole/EMoleCAD/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/the78mole/EMoleCAD/badge)](https://scorecard.dev/viewer/?uri=github.com/the78mole/EMoleCAD)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16739/badge)](https://www.bestpractices.dev/projects/16739)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-brightgreen?logo=github)](SECURITY.md)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue)](LICENSE)
 
