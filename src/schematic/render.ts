@@ -100,7 +100,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const baumKnoten = alle.filter((n) => !inKette.has(n) && !seite.has(n))
   const maxRel = baumKnoten.length ? Math.max(...baumKnoten.map(relTiefe)) : -1
   const zeilen = Math.max(maxRel + 1, kette.length, seitenBedarf)
-  const abzweigAbstand = allp ? 12 : 7
+  const abzweigAbstand = allp ? 12 : 10
 
   const busTop = 8
   const busBand = allp ? 5 * BUS_ABSTAND : 0
@@ -131,7 +131,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const platziereSeite = (n: Knoten, x0: number, basis: number, ebene: number): number => {
     // Überspannungsschutz direkt am Abgriff nach unten hängen (Erde zeigt nach unten)
     const runter = ebene === 0 && !n.kinder.length && n.def.symbol === 'spd'
-    const symBot = runter ? basis + abzweigAbstand + 2 + SYM_H : basis - ebene * H
+    const symBot = runter ? basis + abzweigAbstand + (allp ? 2 : 6) + SYM_H : basis - ebene * H
     const l: Lage = { n, x: 0, symTop: symBot - SYM_H, symBot, aus: ausgaenge(n), busY: {}, kette: false, aufwaerts: !runter }
     lagen.set(n, l)
     const eigen = eigeneBreite(n)
@@ -236,7 +236,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       svg.linie(xx, yStart, xx, l.aufwaerts ? l.symBot : l.symTop, { farbe: fa })
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
-    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern)
+    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern, eltern.busY.L1, !!o.farbig)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
     if (n.def.symbol === 'schiene' && l.kette && n === kette[kette.length - 1]) {
@@ -395,12 +395,39 @@ function kuerzen(s: string, max: number) {
   return s.length > max ? s.slice(0, max - 1) + '…' : s
 }
 
-function leiterZahl(svg: Svg, l: Lage, eltern: Lage) {
+// Leiterkennzeichnung im einpoligen Plan nach IEC 60617 (S00003/S00004/S00005):
+// Außenleiter als Schrägstrich (bei mehreren mit Anzahl), N mit Punkt, PE mit Querstrich
+function leiterZahl(svg: Svg, l: Lage, eltern: Lage, yQuelle: number | undefined, farbig: boolean) {
   const n = l.n
   if (n.kinder.length && eltern.n.leiter.length === n.leiter.length) return
-  const y = l.aufwaerts ? l.symBot + 2.5 : l.symTop - 2.5
-  svg.linie(l.x - 1.1, y + 1.1, l.x + 1.1, y - 1.1)
-  svg.text(l.x - 1.4, y + 0.4, n.dc ? '2' : String(n.leiter.length), { groesse: 1.8, anker: 'end' })
+  // Reihenfolge vom Symbol weg: PE, N, Außenleiter (Außenleiter liegt also zur Quelle hin)
+  const marken: ('L' | 'N' | 'PE')[] = []
+  if (n.dc) marken.push('L')
+  else {
+    if (n.leiter.includes('PE')) marken.push('PE')
+    if (n.leiter.includes('N')) marken.push('N')
+    if (n.leiter.some(istPhase)) marken.push('L')
+  }
+  const phasen = n.dc ? 2 : n.leiter.filter(istPhase).length
+  const r = 0.85
+  const richtung = l.aufwaerts ? 1 : -1
+  const yEnde = l.aufwaerts ? l.symBot : l.symTop
+  // Platz bis zur Sammelleitung; die Marken dürfen sie nicht berühren
+  const platz = yQuelle === undefined ? 99 : Math.abs(yEnde - yQuelle) - 1.3
+  let schritt = 1.7, abstand = 1.7
+  const k = marken.length - 1
+  if (abstand + k * schritt + r > platz) {
+    abstand = Math.max(r + 0.3, platz - k * schritt - r)
+    if (abstand + k * schritt + r > platz && k > 0) schritt = Math.max(1.1, (platz - abstand - r) / k)
+  }
+  marken.forEach((m, i) => {
+    const fa = farbig && m !== 'L' ? LEITERFARBE[m] : '#000'
+    const y = yEnde + richtung * (abstand + i * schritt)
+    svg.linie(l.x - r, y + r, l.x + r, y - r, { farbe: fa })
+    if (m === 'L' && phasen > 1) svg.text(l.x + r + 0.4, y - r + 0.2, String(phasen), { groesse: 1.8 })
+    if (m === 'N') svg.punkt(l.x + r, y - r, fa, 0.5)
+    if (m === 'PE') svg.linie(l.x + r - 0.4, y - r, l.x + r + 1.1, y - r, { farbe: fa })
+  })
 }
 
 function einspeisung(svg: Svg, l: Lage, cx: Cx, o: PlanOptionen, allp: boolean, farbe: (l: LeiterName) => string, yUnten?: number) {
