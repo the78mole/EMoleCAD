@@ -24,7 +24,7 @@ komponenten:
     kabel: { typ: NYY-J, querschnitt: 5x16 }
     params: { nennstrom: 63, querschnitt: 12x5 }
   # Potentialausgleichsschiene: nur über "potentialausgleich" verbunden, keine Quelle
-  - id: XE1
+  - id: PAS1
     typ: pas
     params: { erder: Fundamenterder, querschnitt: 16 }
   - id: FA1
@@ -166,7 +166,7 @@ datenverbindungen:
   - { von: KE2, nach: KE1, art: CLS }
 # Potentialausgleich (eigene Verkabelung, grün im Plan)
 potentialausgleich:
-  - { von: XE1, nach: XD1, querschnitt: 16 }
-  - { von: XE1, nach: WD1, querschnitt: 16 }
-  - { von: XE1, nach: FA1, querschnitt: 16 }
+  - { von: PAS1, nach: XD1, querschnitt: 16 }
+  - { von: PAS1, nach: WD1, querschnitt: 16 }
+  - { von: PAS1, nach: FA1, querschnitt: 16 }
 `

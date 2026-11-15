@@ -226,7 +226,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => n(p.ort),
   },
   {
-    typ: 'pas', pa: true, potential: true, label: 'Potentialausgleichsschiene (PAS)', kategorie: 'Einspeisung', bmk: 'XE', farbe: '#2e9e3e',
+    typ: 'pas', pa: true, potential: true, label: 'Potentialausgleichsschiene (PAS)', kategorie: 'Einspeisung', bmk: 'PAS', farbe: '#2e9e3e',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'pas',
     params: [
       { key: 'erder', label: 'Erder', art: 'auswahl', optionen: ['Fundamenterder', 'Ringerder', 'Tiefenerder', 'ohne'], standard: 'Fundamenterder' },

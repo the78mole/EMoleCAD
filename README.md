@@ -110,6 +110,7 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `smgw` | Smart-Meter-Gateway | KE | modell |
 | `sammelschiene` | Sammelschiene (Abgänge hängen daran) | WD | nennstrom, querschnitt |
 | `unterverteilung` | Unterverteilung | UC | ort |
+| `pas` | Potentialausgleichsschiene (ohne Quelle, siehe Potentialausgleich) | PAS | erder, querschnitt |
 
 Die Kennbuchstaben (Klasse + Unterklasse) folgen DIN EN IEC 81346-2:2019. Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
 
@@ -143,15 +144,15 @@ Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, SMGW, Steue
 
 ### Potentialausgleich
 
-Die Potentialausgleichsschiene (`typ: pas`, Kennbuchstaben XE) hat keine Quelle. Ihre Verbindungen stehen getrennt vom Strompfad in `potentialausgleich` und werden im Plan grün mit Querschnitt gezeichnet. Am SPD ersetzt die Verbindung das Erdungssymbol.
+Die Potentialausgleichsschiene (`typ: pas`, Kürzel PAS, bewusst abweichend von IEC 81346-2) hat keine Quelle. Ihre Verbindungen stehen getrennt vom Strompfad in `potentialausgleich` und werden im Plan grün mit Querschnitt gezeichnet. Am SPD ersetzt die Verbindung das Erdungssymbol.
 
 ```yaml
 komponenten:
-  - { id: XE1, typ: pas, params: { erder: Fundamenterder, querschnitt: 16 } }
+  - { id: PAS1, typ: pas, params: { erder: Fundamenterder, querschnitt: 16 } }
 potentialausgleich:
-  - { von: XE1, nach: XD1, querschnitt: 16 }   # HAK
-  - { von: XE1, nach: WD1, querschnitt: 16 }   # Sammelschiene
-  - { von: XE1, nach: FA1, querschnitt: 16 }   # Überspannungsschutz
+  - { von: PAS1, nach: XD1, querschnitt: 16 }   # HAK
+  - { von: PAS1, nach: WD1, querschnitt: 16 }   # Sammelschiene
+  - { von: PAS1, nach: FA1, querschnitt: 16 }   # Überspannungsschutz
 ```
 
 Im Editor haben anschließbare Bausteine (HAK, Sammelschiene, SPD, Unterverteilung, PV-Generator, PAS) grüne runde Anschlüsse unten links/rechts.
