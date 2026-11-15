@@ -16,6 +16,17 @@ export interface PlanOptionen {
   tabelle?: boolean
   daten?: Datenverbindung[]
   pa?: PaVerbindung[]
+  /** Aufteilung auf mehrere Blätter (z.B. zweiter Zählerstrang) */
+  blatt?: BlattBezug
+}
+
+/** Bezug eines Blatts auf die übrigen Blätter des Plansatzes */
+export interface BlattBezug {
+  nr: number
+  /** Blatt und BMK jeder Komponente des Plansatzes */
+  ort: Map<string, { blatt: number; bmk: string }>
+  /** Komponente auf einem anderen Blatt, von der dieses Blatt gespeist wird */
+  zufuehrung?: { bmk: string; blatt: number; leiter: string }
 }
 
 export interface Plan {
@@ -71,6 +82,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const H = allp ? 42 : 32
   const farbe = (l: LeiterName) => (allp && o.farbig ? LEITERFARBE[l] : '#000')
 
+  const bezug = o.blatt
+  /** Komponente steht auf einem anderen Blatt und wird hier nur als Verweis gezeichnet */
+  const fremd = (id: string) => !!bezug && (bezug.ort.get(id)?.blatt ?? bezug.nr) !== bezug.nr
   const alle = [...a.knoten.values()].filter((n) => !n.def.potential)
   if (!alle.length && a.potential.length) {
     // nur Potentialausgleichsschienen vorhanden
@@ -84,22 +98,14 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const eigeneBreite = (n: Knoten) => (allp ? Math.max(30, n.leiter.length * D + 24) : 26)
 
   // Einspeisekette: Hausanschluss und alle Durchgangsgeräte bis zur ersten Verzweigung
-  const kette: Knoten[] = []
-  const hauptWurzel = hager ? a.wurzeln.find((w) => w.def.wurzel) : undefined
-  if (hauptWurzel) {
-    let k = hauptWurzel
-    kette.push(k)
-    for (;;) {
-      const naechster = hauptstrang(k)
-      if (!naechster) break
-      k = naechster
-      kette.push(k)
-    }
-  }
+  const hauptWurzel = hager ? (a.wurzeln.find((w) => w.def.wurzel) ?? (bezug?.zufuehrung ? a.wurzeln[0] : undefined)) : undefined
+  const kette: Knoten[] = hauptWurzel ? einspeiseKette(hauptWurzel) : []
   const inKette = new Set(kette)
   // Abzweige aus der Kette vor dem Kopf (z.B. SPD, Steuerbox im ungezählten Bereich)
   const seitenWurzeln: { k: number; n: Knoten }[] = []
   kette.slice(0, -1).forEach((kn, i) => kn.kinder.filter((c) => !inKette.has(c)).forEach((c) => seitenWurzeln.push({ k: i, n: c })))
+  // Verweise auf andere Blätter hinter die Geräte des ungezählten Bereichs, damit diese zusammen bleiben
+  seitenWurzeln.sort((p, q) => Number(fremd(p.n.k.id)) - Number(fremd(q.n.k.id)))
   const seite = new Set<Knoten>()
   const sammle = (n: Knoten) => { seite.add(n); n.kinder.forEach(sammle) }
   seitenWurzeln.forEach((s) => sammle(s.n))
@@ -250,7 +256,13 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       else yStart = n.def.wurzel && !hager ? OBEN - 2 : l.symTop - 5
       svg.linie(xx, yStart, xx, l.aufwaerts ? l.symBot : l.symTop, { farbe: fa })
     }
+    if (fremd(n.k.id)) {
+      if (!allp && eltern) leiterZahl(svg, l, eltern, eltern.busY.L1, !!o.farbig)
+      verweisPfeil(svg, l, allp, cx, `${n.bmk} → Blatt ${bezug!.ort.get(n.k.id)!.blatt}`)
+      continue
+    }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
+    else if (!eltern && l.kette && bezug?.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern, eltern.busY.L1, !!o.farbig)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
@@ -263,13 +275,15 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     } else beschriftung(svg, l, allp, cx, hager && o.tabelle !== false, (o.daten ?? []).filter((d) => d.von === n.k.id || d.nach === n.k.id).length)
   }
 
-  datenLinien(svg, lagen, o, allp, cx)
-  const pa = potentialausgleich(svg, a, lagen, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
+  // Verweise auf andere Blätter sind keine echten Anschlusspunkte für Hilfsleitungen
+  const eigene = new Map([...lagen].filter(([n]) => !fremd(n.k.id)))
+  datenLinien(svg, eigene, o, allp, cx)
+  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
   breite = Math.max(breite, pa.rechts + 4)
 
   let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4)
   if (hager && o.tabelle !== false) {
-    const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined).sort((p, q) => p.slotX0! - q.slotX0!)
+    const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined && !fremd(l.n.k.id)).sort((p, q) => p.slotX0! - q.slotX0!)
     if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12, trennX) + 4
   }
   return { inhalt: svg.toString(), breite, hoehe }
@@ -278,11 +292,48 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
 /** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
 const HAUPTSTRANG = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung']
 
-function hauptstrang(k: Knoten): Knoten | undefined {
+export function hauptstrang(k: Knoten): Knoten | undefined {
   if (!k.def.durchgang) return undefined
   if (k.kinder.length === 1) return k.kinder[0].def.durchgang ? k.kinder[0] : undefined
   const kandidaten = k.kinder.filter((c) => HAUPTSTRANG.includes(c.k.typ))
-  return kandidaten.length === 1 ? kandidaten[0] : undefined
+  if (kandidaten.length === 1) return kandidaten[0]
+  // mehrere Zählerstränge (z.B. Modul 2 mit separatem Zähler): der erste ist der Hauptstrang
+  return kandidaten.find(hatZaehler)
+}
+
+export function hatZaehler(n: Knoten): boolean {
+  return n.k.typ === 'zaehler' || n.kinder.some(hatZaehler)
+}
+
+/** Einspeisekette ab einer Wurzel: alle Durchgangsgeräte entlang des Hauptstrangs */
+export function einspeiseKette(w: Knoten): Knoten[] {
+  const kette = [w]
+  for (let k = hauptstrang(w); k; k = hauptstrang(k)) kette.push(k)
+  return kette
+}
+
+// ---------- Verweise auf andere Blätter ----------
+
+/** Abgang auf ein anderes Blatt: Leitung endet in einem Pfeil mit Ziel-BMK und Blatt */
+function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, text: string) {
+  const xs = allp ? l.n.leiter.map((le) => cx(l, le)) : [l.x]
+  const y = l.aufwaerts ? l.symBot : l.symTop
+  const richtung = l.aufwaerts ? -1 : 1
+  if (xs.length > 1) svg.linie(Math.min(...xs), y, Math.max(...xs), y, { breite: 0.35 })
+  const spitze = y + richtung * 5
+  svg.linie(l.x, y, l.x, spitze - richtung * 2, { breite: 0.35 })
+  svg.pfad(`M ${l.x} ${spitze} L ${l.x - 1} ${spitze - richtung * 2} L ${l.x + 1} ${spitze - richtung * 2} Z`, { fuellung: '#000', breite: 0.2 })
+  svg.text(l.x + 0.8, spitze + richtung * 1, text, { groesse: 2.2, fett: true, drehung: -90, anker: l.aufwaerts ? 'start' : 'end' })
+}
+
+/** Zuführung von einem anderen Blatt am Fuß der Einspeisekette */
+function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: { bmk: string; blatt: number; leiter: string }) {
+  const xs = allp ? l.n.leiter.map((le) => cx(l, le)) : [l.x]
+  if (xs.length > 1) svg.linie(Math.min(...xs), yNetz, Math.max(...xs), yNetz, { breite: 0.35 })
+  const sx = Math.min(...xs)
+  svg.pfad(`M ${l.x} ${yNetz - 2.5} L ${l.x - 1} ${yNetz - 0.5} L ${l.x + 1} ${yNetz - 0.5} Z`, { fuellung: '#000', breite: 0.2 })
+  svg.text(sx - 3, yNetz + 3.5, `von ${z.bmk} (Blatt ${z.blatt})`, { groesse: 2.2, fett: true })
+  svg.text(sx - 3, yNetz + 6.5, z.leiter, { groesse: 2 })
 }
 
 // ---------- Informationsverbindungen ----------
@@ -327,6 +378,19 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
   }
   liste.forEach((d, i) => {
     let a = nachId.get(d.von), b = nachId.get(d.nach)
+    // Gegenstelle auf einem anderen Blatt: kurzer Stich mit Verweis
+    const fern = !a ? d.von : !b ? d.nach : undefined
+    const ziel = fern ? o.blatt?.ort.get(fern) : undefined
+    if ((a || b) && ziel) {
+      const l = (a ?? b)!
+      // Stich über die übrigen Leitungen hinaus, damit er sich nicht mit ihnen kreuzt
+      const q = anschluss(l, 3 + liste.length * 1.6)
+      const ende = [q.s[0] + 4, q.s[1]]
+      svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
+      svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
+      svg.text(ende[0] + 0.8, ende[1] + 0.6, `${d.art ? d.art + ' ' : ''}→ ${ziel.bmk} (Blatt ${ziel.blatt})`, { groesse: 1.7, farbe })
+      return
+    }
     if (!a || !b || a === b) return
     // Geräte in der Einspeisekette werden seitlich angefahren: dort immer als Ziel routen
     if (seite(a) === 'kette' && seite(b) !== 'kette') [a, b] = [b, a]
@@ -399,6 +463,8 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const id = pas.k.id
     const verb = liste.filter((d) => d.von === id || d.nach === id)
     const partner = verb.map((d) => ({ d, l: nachId.get(d.von === id ? d.nach : d.von) })).filter((v): v is { d: PaVerbindung; l: Lage } => !!v.l)
+    // Partner auf anderen Blättern
+    const fern = verb.map((d) => o.blatt?.ort.get(d.von === id ? d.nach : d.von)).filter((z, i): z is { blatt: number; bmk: string } => !!z && !nachId.has(verb[i].von === id ? verb[i].nach : verb[i].von) && z.blatt !== o.blatt!.nr)
     const ans = partner.map((v) => ({ ...v, a: anschluss(v.l) }))
     // Schienenhöhe: unter allen Anschlüssen, Geräte der Einspeisekette möglichst waagerecht anfahren
     const kette = ans.filter((v) => v.l.kette).map((v) => v.a.p[1])
@@ -412,7 +478,14 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const xs = senk.map((v) => v.a.x)
     const links = direkt.length ? Math.max(...direkt.map((v) => v.a.p[0])) + 14 : frei.x
     const x0 = xs.length ? Math.min(Math.min(...xs) - 4, Math.max(links, Math.min(...xs) - 4)) : links
-    const x1 = Math.max(x0 + 24, ...xs.map((x) => x + 6))
+    const fernX = fern.map((_, i) => Math.max(x0 + 4, ...xs.map((x) => x + 6)) + i * 6)
+    const x1 = Math.max(x0 + 24, ...xs.map((x) => x + 6), ...fernX.map((x) => x + 4))
+    fern.forEach((z, i) => {
+      const fx = fernX[i]
+      svg.linie(fx, y, fx, y + 5, stil)
+      svg.pfad(`M ${fx} ${y + 7} L ${fx - 0.8} ${y + 5} L ${fx + 0.8} ${y + 5} Z`, { farbe: fa, fuellung: fa, breite: 0.1 })
+      svg.text(fx + 0.8, y + 8, `${z.bmk} (Blatt ${z.blatt})`, { groesse: 1.6, farbe: fa, drehung: -90, anker: 'end' })
+    })
     for (const v of senk) leitung(v.a, y, querschnitt(v.d))
     for (const v of direkt) {
       const [px, py] = v.a.p
@@ -455,6 +528,21 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
 
   // Potentialausgleich direkt zwischen zwei Geräten (ohne PAS)
   const pasIds = new Set(a.potential.map((n) => n.k.id))
+  // Gegenstelle auf einem anderen Blatt: Stich mit Verweis
+  for (const d of liste) {
+    const la = nachId.get(d.von), lb = nachId.get(d.nach)
+    if (!la === !lb) continue
+    const fern = la ? d.nach : d.von
+    const z = o.blatt?.ort.get(fern)
+    if (!z || z.blatt === o.blatt!.nr || pasIds.has(fern)) continue
+    const q = anschluss((la ?? lb)!)
+    const y = q.p[1] + 6
+    leitung(q, y, querschnitt(d))
+    svg.pfad(`M ${q.x} ${y + 2} L ${q.x - 0.8} ${y} L ${q.x + 0.8} ${y} Z`, { farbe: fa, fuellung: fa, breite: 0.1 })
+    svg.text(q.x + 1.2, y + 2, `${z.bmk} (Blatt ${z.blatt})`, { groesse: 1.6, farbe: fa })
+    unten = Math.max(unten, y + 3)
+    rechts = Math.max(rechts, q.x + 16)
+  }
   for (const d of liste) {
     if (pasIds.has(d.von) || pasIds.has(d.nach)) continue
     const la = nachId.get(d.von), lb = nachId.get(d.nach)

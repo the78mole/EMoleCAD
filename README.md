@@ -130,6 +130,21 @@ rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. 
 
 Die Einspeisekette läuft über Sammelschiene, SLS, Zähler, HLAK, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
 
+### Mehrere Zähler (z. B. § 14a Modul 2)
+
+Zweigt vor dem Hauptzähler ein weiterer Zählerstrang ab (etwa ein eigener Zähler für steuerbare Verbraucher), kommt dieser
+auf ein eigenes Blatt. Auf Blatt 1 endet der Abgang in einem Verweispfeil (`-FC10 → Blatt 2`), Blatt 2 beginnt mit
+`von -WD1 (Blatt 1)`. Datenverbindungen und Potentialausgleich zwischen den Blättern werden als Stich mit Verweis
+gezeichnet (`LMN → -KE1 (Blatt 1)`). Der ungezählte Bereich mit SPD, SMGW und Steuerbox bleibt dabei auf Blatt 1 beisammen.
+
+```yaml
+  - { id: FC10, typ: sls,     quelle: WD1, params: { nennstrom: 35 } }
+  - { id: PG2,  typ: zaehler, quelle: FC10, name: Zähler § 14a Modul 2 }
+  - { id: FC4,  typ: ls,      quelle: PG2, pole: 3 }
+datenverbindungen:
+  - { von: KE1, nach: PG2, art: LMN }
+```
+
 ### Informationsverbindungen
 
 Kommunikationsleitungen stehen getrennt von der Energieversorgung in `datenverbindungen` und werden im Plan violett strichpunktiert gezeichnet:

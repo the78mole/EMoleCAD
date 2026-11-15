@@ -147,7 +147,10 @@ export function autoLayout(p: Projekt): Record<string, { x: number; y: number }>
     min = Math.max(min, frei[n.tiefe] ?? 0)
     let x = min
     if (n.kinder.length) {
-      const kinder = [...n.kinder.filter(istKette), ...n.kinder.filter((c) => !istKette(c))]
+      // Hauptstrang zuerst, dann die übrigen Geräte (z.B. ungezählter Bereich mit SMGW und Steuerbox),
+      // weitere Zählerstränge zuletzt, damit der Netzbereich beisammen bleibt
+      const ketten = n.kinder.filter(istKette)
+      const kinder = [...ketten.slice(0, 1), ...n.kinder.filter((c) => !istKette(c)), ...ketten.slice(1)]
       x = setze(kinder[0], min)
       kinder.slice(1).forEach((c) => setze(c, x))
     }
