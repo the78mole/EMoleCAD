@@ -6,7 +6,7 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import { typDef } from '../model/library'
-import { autoLayout, datenTrennen, datenVerbinden, entfernen, hinzufuegen, istVorfahr, setzeQuelle } from '../model/ops'
+import { autoLayout, neuNummerieren, datenTrennen, datenVerbinden, entfernen, hinzufuegen, istVorfahr, setzeQuelle } from '../model/ops'
 import type { Projekt } from '../model/types'
 import { Bibliothek } from './Bibliothek'
 import { Eigenschaften } from './Eigenschaften'
@@ -193,6 +193,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
           <MiniMap pannable zoomable nodeColor={(n) => (n.data as KomponentenNodeTyp['data']).def.farbe} />
         </ReactFlow>
         <div className="flaeche-werkzeug">
+          <button onClick={() => { onChange(neuNummerieren(pRef.current)); setAuswahl(null) }} title="Kennzeichen (F1, F2, …) von links nach rechts neu vergeben">Neu nummerieren</button>
           <button onClick={anordnen} title="Knoten als Baum anordnen">Automatisch anordnen</button>
         </div>
       </div>

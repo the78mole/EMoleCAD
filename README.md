@@ -21,6 +21,8 @@ Ohne Installation: `molecad.html` direkt im Browser öffnen.
 - **Grafischer Editor**: Bausteine aus der Bibliothek links auf die Fläche ziehen (oder doppelklicken – dann hängt der neue Baustein direkt an der ausgewählten Komponente). Verbindung vom unteren Anschluss (Abgang) zum oberen Anschluss (Einspeisung) ziehen. Klick auf einen Baustein öffnet die Eigenschaften. `Entf` löscht Bausteine oder Verbindungen.
 - **YAML**: Dieselben Daten als Text. Änderungen werden sofort übernommen; bei Syntaxfehlern bleibt der letzte gültige Stand stehen.
 - **Plan**: Umschalten einpolig/allpolig, Anordnung wählen („Einspeisung links, Spalten“ im HagerCAD-Stil mit Stromkreistabelle oder „Baum von oben“), Blattvorlage wählen (A3/A4 mit Schriftfeld, kompakt, ohne Rahmen), Export als SVG, PDF oder PDF mit beiden Plänen.
+- **Neu nummerieren** (im grafischen Editor) vergibt die Kennzeichen je Kennbuchstabe (F1, F2, …) von links nach rechts in Baumreihenfolge, so wie die Bausteine im Editor angeordnet sind. Quellen und Datenverbindungen werden mit umbenannt.
+- Die Reihenfolge der Spalten im Plan folgt der Anordnung im grafischen Editor (links nach rechts); ohne Editorpositionen gilt die Reihenfolge im YAML.
 - Editor und Plan lassen sich über „Einklappen“ zur Seite klappen; der andere Bereich bekommt dann die volle Breite. Die schmale Leiste am Rand blendet ihn wieder ein.
 - Der Stand wird automatisch im Browser (localStorage) gespeichert; „YAML speichern“/„Öffnen…“ für Dateien.
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BEISPIEL_YAML } from '../model/beispiel'
 import { parseYaml, toYaml, YamlFehler } from '../model/yaml'
 import { analysiere } from '../model/analyse'
-import { hinzufuegen, aktualisieren, entfernen, istVorfahr } from '../model/ops'
+import { hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren } from '../model/ops'
 import { zeichnePlan } from '../schematic/render'
 
 describe('YAML', () => {
@@ -67,9 +67,9 @@ describe('Operationen', () => {
 describe('Datenverbindungen', () => {
   it('werden gelesen, beim Umbenennen nachgezogen und beim Löschen entfernt', () => {
     let p = parseYaml(BEISPIEL_YAML)
-    expect(p.datenverbindungen).toEqual([{ von: 'K2', nach: 'P1', art: 'LMN' }, { von: 'K1', nach: 'K2', art: 'CLS' }])
-    p = aktualisieren(p, 'K2', { ...p.komponenten.find((k) => k.id === 'K2')!, id: 'K9' })
-    expect(p.datenverbindungen!.every((d) => d.von !== 'K2' && d.nach !== 'K2')).toBe(true)
+    expect(p.datenverbindungen).toEqual([{ von: 'K1', nach: 'P1', art: 'LMN' }, { von: 'K2', nach: 'K1', art: 'CLS' }])
+    p = aktualisieren(p, 'K1', { ...p.komponenten.find((k) => k.id === 'K1')!, id: 'K9' })
+    expect(p.datenverbindungen!.every((d) => d.von !== 'K1' && d.nach !== 'K1')).toBe(true)
     p = entfernen(p, ['K9'])
     expect(p.datenverbindungen).toEqual([])
   })
@@ -78,6 +78,24 @@ describe('Datenverbindungen', () => {
     const plan = zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, daten: p.datenverbindungen })
     expect(plan.inhalt).toContain('LMN')
     expect(plan.inhalt).toContain('CLS')
+  })
+})
+
+describe('Neu nummerieren', () => {
+  it('vergibt Kennzeichen von links nach rechts in Baumreihenfolge', () => {
+    let p = parseYaml(BEISPIEL_YAML)
+    // Steuerbox im Editor links vom SMGW platzieren -> bekommt die kleinere Nummer
+    p = { ...p, editor: { K1: { x: 500, y: 0 }, K2: { x: 100, y: 0 } } }
+    const n = neuNummerieren(p)
+    const typ = (id: string) => n.komponenten.find((k) => k.id === id)!.typ
+    expect(typ('K1')).toBe('steuerbox')
+    expect(typ('K2')).toBe('smgw')
+    expect(n.datenverbindungen).toEqual([{ von: 'K2', nach: 'P1', art: 'LMN' }, { von: 'K1', nach: 'K2', art: 'CLS' }])
+    expect(new Set(n.komponenten.map((k) => k.id)).size).toBe(n.komponenten.length)
+    expect(analysiere(n).meldungen.filter((m) => m.stufe !== 'info')).toEqual([])
+    // RCD vor seinen LS
+    const ids = n.komponenten.filter((k) => k.typ === 'rcd' || k.quelle === n.komponenten.find((r) => r.typ === 'rcd')?.id).map((k) => k.id)
+    expect(ids.length).toBeGreaterThan(1)
   })
 })
 

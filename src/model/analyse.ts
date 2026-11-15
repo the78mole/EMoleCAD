@@ -69,6 +69,14 @@ export function analysiere(p: Projekt): Analyse {
     e.kinder.push(n)
   }
 
+  // Reihenfolge der Abgänge wie im grafischen Editor (links nach rechts), sonst Listenreihenfolge
+  const pos = p.editor ?? {}
+  const sortiere = (liste: Knoten[]) => {
+    if (liste.length > 1 && liste.every((n) => pos[n.k.id])) liste.sort((a, b) => pos[a.k.id].x - pos[b.k.id].x || pos[a.k.id].y - pos[b.k.id].y)
+  }
+  for (const n of knoten.values()) sortiere(n.kinder)
+  sortiere(wurzeln)
+
   // Zyklen erkennen: Knoten, die von keiner Wurzel erreichbar sind
   const erreicht = new Set<Knoten>()
   const besuche = (n: Knoten, tiefe: number) => {

@@ -35,14 +35,14 @@ komponenten:
     phase: L1
     params: { charakteristik: B, nennstrom: 6 }
   - id: K1
+    typ: smgw
+    name: Smart-Meter-Gateway
+    quelle: F11
+  - id: K2
     typ: steuerbox
     name: Steuerbox
     quelle: F11
     params: { art: FNN-Steuerbox }
-  - id: K2
-    typ: smgw
-    name: Smart-Meter-Gateway
-    quelle: F11
   # Gezählter Bereich: SLS -> Zähler -> HLAK -> Verteilung
   - id: Q1
     typ: sls
@@ -157,6 +157,6 @@ komponenten:
     params: { leistung: 4, steuerbar: true }
 # Informationsverbindungen (strichpunktiert im Plan)
 datenverbindungen:
-  - { von: K2, nach: P1, art: LMN }
-  - { von: K1, nach: K2, art: CLS }
+  - { von: K1, nach: P1, art: LMN }
+  - { von: K2, nach: K1, art: CLS }
 `

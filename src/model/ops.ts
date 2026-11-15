@@ -87,6 +87,31 @@ export function istVorfahr(p: Projekt, vorfahr: string, id: string): boolean {
   return false
 }
 
+/** Betriebsmittelkennzeichen je Kennbuchstabe neu vergeben: von links nach rechts in Baumreihenfolge
+ *  (wie im grafischen Editor angeordnet), Einspeisung zuerst. */
+export function neuNummerieren(p: Projekt): Projekt {
+  const editor = { ...autoLayout(p), ...(p.editor ?? {}) }
+  const a = analysiere({ ...p, editor })
+  const neu = new Map<string, string>()
+  const zaehler: Record<string, number> = {}
+  const besuche = (n: (typeof a.wurzeln)[number]) => {
+    if (neu.has(n.k.id)) return
+    const pre = n.def.bmk
+    zaehler[pre] = (zaehler[pre] ?? 0) + 1
+    neu.set(n.k.id, `${pre}${zaehler[pre]}`)
+    n.kinder.forEach(besuche)
+  }
+  a.wurzeln.forEach(besuche)
+  p.komponenten.forEach((k) => { if (!neu.has(k.id)) { const pre = typDef(k.typ).bmk; zaehler[pre] = (zaehler[pre] ?? 0) + 1; neu.set(k.id, `${pre}${zaehler[pre]}`) } })
+  const m = (id: string) => neu.get(id) ?? id
+  return {
+    ...p,
+    komponenten: p.komponenten.map((k) => ({ ...k, id: m(k.id), quelle: k.quelle ? m(k.quelle) : undefined })),
+    datenverbindungen: p.datenverbindungen?.map((d) => ({ ...d, von: m(d.von), nach: m(d.nach) })),
+    editor: Object.fromEntries(Object.entries(editor).filter(([id]) => neu.has(id)).map(([id, v]) => [m(id), v])),
+  }
+}
+
 /** Baum-Layout für den Node-Editor */
 export function autoLayout(p: Projekt): Record<string, { x: number; y: number }> {
   const a = analysiere(p)
