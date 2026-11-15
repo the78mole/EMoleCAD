@@ -64,6 +64,23 @@ describe('Operationen', () => {
   })
 })
 
+describe('Datenverbindungen', () => {
+  it('werden gelesen, beim Umbenennen nachgezogen und beim Löschen entfernt', () => {
+    let p = parseYaml(BEISPIEL_YAML)
+    expect(p.datenverbindungen).toEqual([{ von: 'K2', nach: 'P1', art: 'LMN' }, { von: 'K1', nach: 'K2', art: 'CLS' }])
+    p = aktualisieren(p, 'K2', { ...p.komponenten.find((k) => k.id === 'K2')!, id: 'K9' })
+    expect(p.datenverbindungen!.every((d) => d.von !== 'K2' && d.nach !== 'K2')).toBe(true)
+    p = entfernen(p, ['K9'])
+    expect(p.datenverbindungen).toEqual([])
+  })
+  it('werden im Plan gezeichnet', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    const plan = zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, daten: p.datenverbindungen })
+    expect(plan.inhalt).toContain('LMN')
+    expect(plan.inhalt).toContain('CLS')
+  })
+})
+
 describe('Plan', () => {
   it('erzeugt einpoligen und allpoligen Plan', () => {
     const p = parseYaml(BEISPIEL_YAML)

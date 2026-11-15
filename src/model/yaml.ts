@@ -1,5 +1,5 @@
 import YAML from 'yaml'
-import type { Komponente, Projekt, ParamWert } from './types'
+import type { Datenverbindung, Komponente, Projekt, ParamWert } from './types'
 
 export class YamlFehler extends Error {
   zeile?: number
@@ -42,6 +42,15 @@ export function parseYaml(text: string): Projekt {
   if (!Array.isArray(ks)) throw new YamlFehler('"komponenten" muss eine Liste sein')
   p.komponenten = ks.map((k, i) => komponenteAus(k, i))
 
+  if (roh.datenverbindungen !== undefined && roh.datenverbindungen !== null) {
+    if (!Array.isArray(roh.datenverbindungen)) throw new YamlFehler('"datenverbindungen" muss eine Liste sein')
+    p.datenverbindungen = roh.datenverbindungen.map((d, i): Datenverbindung => {
+      if (!istObjekt(d) || !d.von || !d.nach) throw new YamlFehler(`Datenverbindung #${i + 1}: "von" und "nach" sind nötig`)
+      const v: Datenverbindung = { von: String(d.von), nach: String(d.nach) }
+      if (d.art) v.art = String(d.art)
+      return v
+    })
+  }
   if (roh.editor !== undefined && istObjekt(roh.editor)) {
     p.editor = {}
     for (const [id, pos] of Object.entries(roh.editor)) {
@@ -104,12 +113,14 @@ export function toYaml(p: Projekt): string {
       return o
     }),
   }
+  if (p.datenverbindungen?.length) roh.datenverbindungen = p.datenverbindungen.map((d) => (d.art ? { von: d.von, nach: d.nach, art: d.art } : { von: d.von, nach: d.nach }))
   const doc = new YAML.Document(roh)
   // kompakte Darstellung für Parameter und Kabel
   YAML.visit(doc, {
     Pair(_, pair) {
       const key = (pair.key as YAML.Scalar)?.value
       if ((key === 'params' || key === 'kabel') && YAML.isMap(pair.value)) pair.value.flow = true
+      if (key === 'datenverbindungen' && YAML.isSeq(pair.value)) pair.value.items.forEach((it) => { if (YAML.isMap(it)) it.flow = true })
     },
   })
   let out = doc.toString({ lineWidth: 0 })

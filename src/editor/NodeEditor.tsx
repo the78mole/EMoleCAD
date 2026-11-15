@@ -6,7 +6,7 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import { typDef } from '../model/library'
-import { autoLayout, entfernen, hinzufuegen, istVorfahr, setzeQuelle } from '../model/ops'
+import { autoLayout, datenTrennen, datenVerbinden, entfernen, hinzufuegen, istVorfahr, setzeQuelle } from '../model/ops'
 import type { Projekt } from '../model/types'
 import { Bibliothek } from './Bibliothek'
 import { Eigenschaften } from './Eigenschaften'
@@ -47,15 +47,32 @@ function Innen({ projekt, analyse, onChange }: Props) {
         .filter((k) => k.quelle && projekt.komponenten.some((q) => q.id === k.quelle))
         .map((k) => {
           const kn = analyse.knoten.get(k.id)
-          return {
+          const e: Edge = {
             id: `${k.quelle}->${k.id}`,
             source: k.quelle!,
             target: k.id,
+            sourceHandle: 'strom-out',
+            targetHandle: 'strom-in',
             type: 'smoothstep',
             label: kn ? (kn.dc ? 'DC' : kn.pole === 3 ? '3/N/PE' : `${kn.phase}/N/PE`) : undefined,
             className: kn?.dc ? 'kante-dc' : kn?.pole === 3 ? 'kante-3' : 'kante-1',
           }
-        }),
+          return e
+        })
+        .concat(
+          (projekt.datenverbindungen ?? [])
+            .filter((d) => projekt.komponenten.some((k) => k.id === d.von) && projekt.komponenten.some((k) => k.id === d.nach))
+            .map((d): Edge => ({
+              id: `daten:${d.von}->${d.nach}`,
+              source: d.von,
+              target: d.nach,
+              sourceHandle: typDef(projekt.komponenten.find((k) => k.id === d.von)!.typ).daten ? 'daten-out' : undefined,
+              targetHandle: typDef(projekt.komponenten.find((k) => k.id === d.nach)!.typ).daten ? 'daten-in' : undefined,
+              type: 'default',
+              label: d.art,
+              className: 'kante-daten',
+            })),
+        ),
     [projekt, analyse],
   )
 
@@ -76,19 +93,27 @@ function Innen({ projekt, analyse, onChange }: Props) {
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     let p = pRef.current
-    for (const c of changes) if (c.type === 'remove') p = setzeQuelle(p, c.id.split('->')[1], undefined)
+    for (const c of changes) {
+      if (c.type !== 'remove') continue
+      if (c.id.startsWith('daten:')) {
+        const [von, nach] = c.id.slice(6).split('->')
+        p = datenTrennen(p, von, nach)
+      } else p = setzeQuelle(p, c.id.split('->')[1], undefined)
+    }
     if (p !== pRef.current) onChange(p)
   }, [onChange])
 
   const isValidConnection: IsValidConnection = useCallback((c) => {
     if (!c.source || !c.target || c.source === c.target) return false
+    if (c.sourceHandle === 'daten-out' || c.targetHandle === 'daten-in') return c.sourceHandle === 'daten-out' && c.targetHandle === 'daten-in'
     const ziel = pRef.current.komponenten.find((k) => k.id === c.target)
     if (!ziel || typDef(ziel.typ).wurzel) return false
     return !istVorfahr(pRef.current, c.target, c.source)
   }, [])
 
   const onConnect = useCallback((c: Connection) => {
-    onChange(setzeQuelle(pRef.current, c.target, c.source))
+    if (c.sourceHandle === 'daten-out') onChange(datenVerbinden(pRef.current, c.source, c.target))
+    else onChange(setzeQuelle(pRef.current, c.target, c.source))
   }, [onChange])
 
   const onNodeDragStop = useCallback((_: unknown, __: unknown, bewegt: KomponentenNodeTyp[]) => {
@@ -180,6 +205,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
             onChange(aktualisieren(pRef.current, alt, k))
             if (k.id !== alt) setAuswahl(k.id)
           }}
+          onProjekt={onChange}
           onLoeschen={(id) => { onChange(entfernen(pRef.current, [id])); setAuswahl(null) }}
           onSchliessen={() => setAuswahl(null)}
         />

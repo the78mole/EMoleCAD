@@ -89,6 +89,11 @@ export function analysiere(p: Projekt): Analyse {
     }
   }
 
+  for (const d of p.datenverbindungen ?? []) {
+    for (const id of [d.von, d.nach]) if (!knoten.has(id)) meldungen.push({ stufe: 'warnung', text: `Datenverbindung ${d.von} → ${d.nach}: "${id}" existiert nicht` })
+    if (d.von === d.nach) meldungen.push({ stufe: 'warnung', text: `Datenverbindung ${d.von} zeigt auf sich selbst`, id: d.von })
+  }
+
   const hak = wurzeln.filter((w) => w.def.wurzel)
   if (knoten.size && !hak.length) meldungen.push({ stufe: 'warnung', text: 'Kein Hausanschluss vorhanden' })
 

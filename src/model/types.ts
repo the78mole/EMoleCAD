@@ -36,10 +36,18 @@ export interface ProjektInfo {
   revision?: string
 }
 
+/** Informations-/Kommunikationsverbindung (z.B. SMGW–Zähler über LMN) */
+export interface Datenverbindung {
+  von: string
+  nach: string
+  art?: string
+}
+
 export interface Projekt {
   projekt: ProjektInfo
   netz: { form: Netzform; spannung?: string }
   komponenten: Komponente[]
+  datenverbindungen?: Datenverbindung[]
   /** Positionen im Node-Editor, rein visuell */
   editor?: Record<string, { x: number; y: number }>
 }

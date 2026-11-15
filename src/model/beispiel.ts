@@ -145,4 +145,8 @@ komponenten:
     quelle: F10
     kabel: { typ: NYM-J, querschnitt: "5x2,5" }
     params: { leistung: 4, steuerbar: true }
+# Informationsverbindungen (strichpunktiert im Plan)
+datenverbindungen:
+  - { von: K2, nach: P1, art: LMN }
+  - { von: K1, nach: K2, art: CLS }
 `

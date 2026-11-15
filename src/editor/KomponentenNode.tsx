@@ -18,7 +18,9 @@ export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp
   const leiter = knoten ? (knoten.dc ? 'DC' : knoten.pole === 3 ? '3~' : knoten.phase ?? '1~') : ''
   return (
     <div className={`kn ${selected ? 'sel' : ''} ${meldung ?? ''}`} style={{ ['--farbe' as string]: def.farbe }}>
-      {!def.wurzel && <Handle type="target" position={Position.Top} />}
+      {!def.wurzel && <Handle type="target" id="strom-in" position={Position.Top} />}
+      {def.daten && <Handle type="target" id="daten-in" position={Position.Left} className="daten-handle" title="Datenverbindung (Eingang)" />}
+      {def.daten && <Handle type="source" id="daten-out" position={Position.Right} className="daten-handle" title="Datenverbindung ziehen" />}
       <div className="kn-kopf">
         <TypIcon art={def.symbol} />
         <span>{def.label}</span>
@@ -29,7 +31,7 @@ export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp
         {k.name && <div className="kn-name">{k.name}</div>}
         {kurz.trim() && <div className="kn-kurz">{kurz}</div>}
       </div>
-      {def.kinder && <Handle type="source" position={Position.Bottom} />}
+      {def.kinder && <Handle type="source" id="strom-out" position={Position.Bottom} />}
     </div>
   )
 }

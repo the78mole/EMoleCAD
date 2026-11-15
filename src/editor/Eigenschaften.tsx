@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import { typDef } from '../model/library'
 import type { Komponente, ParamWert, Projekt } from '../model/types'
+import { datenArtSetzen, datenTrennen, datenVerbinden } from '../model/ops'
 
 interface Props {
   projekt: Projekt
   analyse: Analyse
   id: string
   onAendern: (alteId: string, neu: Komponente) => void
+  onProjekt: (p: Projekt) => void
   onLoeschen: (id: string) => void
   onSchliessen: () => void
 }
 
-export function Eigenschaften({ projekt, analyse, id, onAendern, onLoeschen, onSchliessen }: Props) {
+export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLoeschen, onSchliessen }: Props) {
   const k = projekt.komponenten.find((x) => x.id === id)
   const [idEntwurf, setIdEntwurf] = useState(id)
   useEffect(() => setIdEntwurf(id), [id])
@@ -126,6 +128,27 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onLoeschen, onS
             <label>Querschnitt<input value={k.kabel?.querschnitt ?? ''} placeholder="5x2,5" onChange={(e) => setzeKabel('querschnitt', e.target.value)} /></label>
           </div>
           <label>Länge [m]<input type="number" value={k.kabel?.laenge ?? ''} onChange={(e) => setzeKabel('laenge', e.target.value)} /></label>
+        </>
+      )}
+      {def.daten && (
+        <>
+          <div className="eig-abschnitt">Datenverbindungen</div>
+          {(projekt.datenverbindungen ?? []).filter((d) => d.von === id || d.nach === id).map((d) => {
+            const anderer = d.von === id ? d.nach : d.von
+            return (
+              <div key={`${d.von}-${d.nach}`} className="reihe daten-zeile">
+                <span className="daten-ziel">{d.von === id ? '→' : '←'} {anderer}</span>
+                <input value={d.art ?? ''} placeholder="Art (LMN, CLS…)" onChange={(e) => onProjekt(datenArtSetzen(projekt, d.von, d.nach, e.target.value))} />
+                <button className="icon-btn" title="Datenverbindung entfernen" onClick={() => onProjekt(datenTrennen(projekt, d.von, d.nach))}>×</button>
+              </div>
+            )
+          })}
+          <label>Verbinden mit
+            <select value="" onChange={(e) => e.target.value && onProjekt(datenVerbinden(projekt, id, e.target.value))}>
+              <option value="">– Gerät wählen –</option>
+              {projekt.komponenten.filter((x) => x.id !== id && typDef(x.typ).daten).map((x) => <option key={x.id} value={x.id}>{x.id}{x.name ? ` – ${x.name}` : ''}</option>)}
+            </select>
+          </label>
         </>
       )}
       <button className="gefahr" onClick={() => onLoeschen(id)}>Komponente löschen</button>

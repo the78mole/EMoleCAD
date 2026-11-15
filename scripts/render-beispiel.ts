@@ -9,7 +9,7 @@ const p = parseYaml(BEISPIEL_YAML)
 const a = analysiere(p)
 console.log(a.meldungen)
 for (const modus of ['einpolig', 'allpolig'] as const) {
-  const plan = zeichnePlan(a, { modus, farbig: true, netz: p.netz })
+  const plan = zeichnePlan(a, { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen })
   const b = erzeugeBlatt(plan, p, modus, VORLAGEN[0])
   writeFileSync(`${out}/${modus}.svg`, b.svg)
 }

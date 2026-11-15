@@ -1,6 +1,6 @@
 import type { Analyse, Knoten, LeiterName } from '../model/analyse'
 import type { SymbolArt } from '../model/library'
-import type { Projekt } from '../model/types'
+import type { Datenverbindung, Projekt } from '../model/types'
 import { Svg } from './svg'
 
 export type Modus = 'einpolig' | 'allpolig'
@@ -14,6 +14,7 @@ export interface PlanOptionen {
   netz: Projekt['netz']
   anordnung?: Anordnung
   tabelle?: boolean
+  daten?: Datenverbindung[]
 }
 
 export interface Plan {
@@ -252,6 +253,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     beschriftung(svg, l, allp, cx, hager && o.tabelle !== false)
   }
 
+  datenLinien(svg, lagen, o, allp, cx)
+
   let hoehe = hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN
   if (hager && o.tabelle !== false) {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined).sort((p, q) => p.slotX0! - q.slotX0!)
@@ -268,6 +271,61 @@ function hauptstrang(k: Knoten): Knoten | undefined {
   if (k.kinder.length === 1) return k.kinder[0].def.durchgang ? k.kinder[0] : undefined
   const kandidaten = k.kinder.filter((c) => HAUPTSTRANG.includes(c.k.typ))
   return kandidaten.length === 1 ? kandidaten[0] : undefined
+}
+
+// ---------- Informationsverbindungen ----------
+
+type Seite = 'oben' | 'unten' | 'links' | 'rechts'
+
+function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx) {
+  const liste = o.daten ?? []
+  if (!liste.length) return
+  const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
+  const farbe = allp && !o.farbig ? '#000' : '#8e24aa'
+  const seite = (l: Lage): Seite => (l.kette ? 'links' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
+  const geometrie = (l: Lage) => {
+    const xs = l.n.leiter.map((le) => cx(l, le))
+    const spann = Math.max(...xs) - Math.min(...xs)
+    const durch = l.n.def.durchgang
+    const hb = !allp ? (durch ? 4.5 : 5) : durch ? spann / 2 + 2.5 : Math.max(12, spann + 6) / 2
+    const oben = l.symTop + (durch ? 2.5 : allp ? 1.5 : 2)
+    const unten = oben + (durch ? 9 : allp ? 11 : 10)
+    return { hb, oben, unten, mitte: (oben + unten) / 2 }
+  }
+  // Anschlüsse je Gerät zählen, damit mehrere Leitungen nebeneinander liegen
+  const zaehl = new Map<string, number>()
+  const gesamt = new Map<string, number>()
+  liste.forEach((d) => [d.von, d.nach].forEach((id) => gesamt.set(id, (gesamt.get(id) ?? 0) + 1)))
+  const anschluss = (l: Lage, stich: number) => {
+    const id = l.n.k.id
+    const i = zaehl.get(id) ?? 0
+    zaehl.set(id, i + 1)
+    const v = (i - ((gesamt.get(id) ?? 1) - 1) / 2) * 2.5
+    const g = geometrie(l)
+    switch (seite(l)) {
+      case 'oben': return { p: [l.x + v, g.oben], s: [l.x + v, g.oben - stich] }
+      case 'unten': return { p: [l.x + v, g.unten], s: [l.x + v, g.unten + stich] }
+      case 'links': return { p: [l.x - g.hb, g.mitte + v], s: [l.x - g.hb - stich, g.mitte + v] }
+      default: return { p: [l.x + g.hb, g.mitte + v], s: [l.x + g.hb + stich, g.mitte + v] }
+    }
+  }
+  liste.forEach((d, i) => {
+    const a = nachId.get(d.von), b = nachId.get(d.nach)
+    if (!a || !b || a === b) return
+    const stich = 3 + i * 1.6
+    const q = anschluss(a, stich), z = anschluss(b, stich)
+    const ecke = [z.s[0], q.s[1]]
+    const pkt = [q.p, q.s, ecke, z.s, z.p]
+    svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
+    svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
+    svg.kreis(z.p[0], z.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
+    if (d.art) {
+      const lang = Math.abs(ecke[0] - q.s[0]) > 8
+      const tx = lang ? (q.s[0] + ecke[0]) / 2 : z.s[0] + 1
+      const ty = lang ? q.s[1] - 0.8 : (ecke[1] + z.s[1]) / 2
+      svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
+    }
+  })
 }
 
 function istNachfahr(n: Knoten, vorfahr: Knoten): boolean {

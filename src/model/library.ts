@@ -32,6 +32,8 @@ export interface TypDef {
   durchgang: boolean
   symbol: SymbolArt
   params: ParamDef[]
+  /** Hat eine Kommunikationsschnittstelle (Datenverbindungen möglich) */
+  daten?: boolean
   /** Kurzbeschriftung im Plan aus den Parametern */
   kurz?: (p: Record<string, ParamWert>) => string
 }
@@ -50,7 +52,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.sicherungstyp)} ${n(p.sicherung)}A`,
   },
   {
-    typ: 'zaehler', label: 'Zähler', kategorie: 'Einspeisung', bmk: 'P', farbe: '#0ea5e9',
+    typ: 'zaehler', daten: true, label: 'Zähler', kategorie: 'Einspeisung', bmk: 'P', farbe: '#0ea5e9',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'zaehler',
     params: [
       { key: 'art', label: 'Art', art: 'auswahl', optionen: ['Bezug', 'Zweirichtung', 'Erzeugung', 'Unterzähler'], standard: 'Zweirichtung' },
@@ -117,7 +119,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `SPD Typ ${n(p.spdtyp)}`,
   },
   {
-    typ: 'wechselrichter', label: 'PV-Wechselrichter', kategorie: 'Erzeugung', bmk: 'T', farbe: '#16a34a',
+    typ: 'wechselrichter', daten: true, label: 'PV-Wechselrichter', kategorie: 'Erzeugung', bmk: 'T', farbe: '#16a34a',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: false, symbol: 'wechselrichter',
     params: [
       { key: 'leistung', label: 'AC-Leistung', art: 'zahl', einheit: 'kW', standard: 10 },
@@ -137,7 +139,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kWp, ${n(p.module)} Mod.`,
   },
   {
-    typ: 'speicher', label: 'Batteriespeicher', kategorie: 'Erzeugung', bmk: 'G', farbe: '#14b8a6',
+    typ: 'speicher', daten: true, label: 'Batteriespeicher', kategorie: 'Erzeugung', bmk: 'G', farbe: '#14b8a6',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'speicher',
     params: [
       { key: 'kapazitaet', label: 'Kapazität', art: 'zahl', einheit: 'kWh', standard: 10 },
@@ -146,7 +148,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.kapazitaet)} kWh`,
   },
   {
-    typ: 'wallbox', label: 'Wallbox', kategorie: 'Verbraucher', bmk: 'E', farbe: '#2563eb',
+    typ: 'wallbox', daten: true, label: 'Wallbox', kategorie: 'Verbraucher', bmk: 'E', farbe: '#2563eb',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'wallbox',
     params: [
       { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kW', standard: 11 },
@@ -155,7 +157,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kW${p.steuerbar ? ' §14a' : ''}`,
   },
   {
-    typ: 'waermepumpe', label: 'Wärmepumpe', kategorie: 'Verbraucher', bmk: 'E', farbe: '#0891b2',
+    typ: 'waermepumpe', daten: true, label: 'Wärmepumpe', kategorie: 'Verbraucher', bmk: 'E', farbe: '#0891b2',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'waermepumpe',
     params: [
       { key: 'leistung', label: 'el. Leistung', art: 'zahl', einheit: 'kW', standard: 4 },
@@ -170,13 +172,13 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => (p.leistung ? `${p.leistung} kW` : ''),
   },
   {
-    typ: 'steuerbox', label: 'Steuerbox / Steuergerät', kategorie: 'Sonstiges', bmk: 'K', farbe: '#64748b',
+    typ: 'steuerbox', daten: true, label: 'Steuerbox / Steuergerät', kategorie: 'Sonstiges', bmk: 'K', farbe: '#64748b',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'steuerbox',
     params: [{ key: 'art', label: 'Art', art: 'auswahl', optionen: ['FNN-Steuerbox', 'Rundsteuerempfänger'], standard: 'FNN-Steuerbox' }],
     kurz: (p) => n(p.art),
   },
   {
-    typ: 'smgw', label: 'Smart-Meter-Gateway', kategorie: 'Sonstiges', bmk: 'K', farbe: '#475569',
+    typ: 'smgw', daten: true, label: 'Smart-Meter-Gateway', kategorie: 'Sonstiges', bmk: 'K', farbe: '#475569',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'smgw',
     params: [{ key: 'hersteller', label: 'Hersteller/Typ', art: 'text', standard: '' }],
     kurz: (p) => n(p.hersteller) || 'SMGW',

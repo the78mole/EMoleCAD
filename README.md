@@ -98,6 +98,18 @@ rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. 
 
 Die Einspeisekette läuft über Zähler, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
 
+### Informationsverbindungen
+
+Kommunikationsleitungen stehen getrennt von der Energieversorgung in `datenverbindungen` und werden im Plan violett strichpunktiert gezeichnet:
+
+```yaml
+datenverbindungen:
+  - { von: K2, nach: P1, art: LMN }   # SMGW – Zähler
+  - { von: K1, nach: K2, art: CLS }   # Steuerbox – SMGW
+```
+
+Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, SMGW, Steuerbox, Wechselrichter, Speicher, Wallbox, Wärmepumpe) violette Anschlüsse links/rechts. Eine Verbindung von rechts nach links erzeugt eine Datenverbindung; die Art (LMN, CLS, Modbus …) lässt sich in den Eigenschaften bearbeiten. Für SMGW–Zähler und SMGW–Steuerbox wird LMN bzw. CLS vorbelegt.
+
 ## Architektur
 
 ```

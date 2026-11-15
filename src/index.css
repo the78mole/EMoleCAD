@@ -120,3 +120,12 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .leiste-zu span { writing-mode: vertical-rl; font-weight: 600; letter-spacing: .5px; }
 .tabs > button.einklappen { border-radius: 6px; border-bottom: 1px solid var(--rand); margin-bottom: 5px; font-size: 12px; padding: 3px 8px; background: #fff; }
 .plan-leiste .einklappen { font-size: 12px; padding: 4px 8px; }
+
+/* Datenverbindungen */
+.react-flow__handle.daten-handle { width: 9px; height: 9px; border-radius: 2px; border-color: #8e24aa; background: #f3e5f5; }
+.react-flow__handle.daten-handle:hover { background: #8e24aa; }
+.react-flow__edge.kante-daten path { stroke: #8e24aa; stroke-width: 1.4; stroke-dasharray: 8 3 2 3; }
+.react-flow__edge.kante-daten .react-flow__edge-text { fill: #8e24aa; }
+.daten-zeile { align-items: center; }
+.daten-zeile .daten-ziel { flex: none; width: 52px; font-size: 12px; font-weight: 600; }
+.daten-zeile input { flex: 1; }
