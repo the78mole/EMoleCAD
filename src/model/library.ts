@@ -3,7 +3,7 @@ import type { ParamWert } from './types'
 export type SymbolArt =
   | 'hak' | 'zaehler' | 'sls' | 'trenner' | 'sicherung' | 'ls' | 'rcd' | 'rcbo' | 'spd'
   | 'wechselrichter' | 'pvgen' | 'speicher' | 'wallbox' | 'waermepumpe' | 'verbraucher'
-  | 'steuerbox' | 'smgw' | 'verteiler'
+  | 'steuerbox' | 'smgw' | 'verteiler' | 'klemme'
 
 export interface ParamDef {
   key: string
@@ -50,6 +50,15 @@ export const BIBLIOTHEK: TypDef[] = [
       { key: 'netzbetreiber', label: 'Netzbetreiber', art: 'text', standard: '' },
     ],
     kurz: (p) => `${n(p.sicherungstyp)} ${n(p.sicherung)}A`,
+  },
+  {
+    typ: 'hlak', label: 'HLAK (Hauptleiteranschlussklemme)', kategorie: 'Einspeisung', bmk: 'X', farbe: '#78716c',
+    pole: 3, poleWaehlbar: false, kinder: true, durchgang: true, symbol: 'klemme',
+    params: [
+      { key: 'querschnitt', label: 'Klemmbereich', art: 'text', einheit: 'mm²', standard: '35' },
+      { key: 'nennstrom', label: 'Bemessungsstrom', art: 'zahl', einheit: 'A', standard: 63 },
+    ],
+    kurz: (p) => `HLAK${p.querschnitt ? ' ' + p.querschnitt + ' mm²' : ''}`,
   },
   {
     typ: 'zaehler', daten: true, label: 'Zähler', kategorie: 'Einspeisung', bmk: 'P', farbe: '#0ea5e9',

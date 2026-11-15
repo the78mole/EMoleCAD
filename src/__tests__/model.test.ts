@@ -8,7 +8,7 @@ import { zeichnePlan } from '../schematic/render'
 describe('YAML', () => {
   it('Beispiel lässt sich parsen und ohne Verlust zurückschreiben', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    expect(p.komponenten).toHaveLength(25)
+    expect(p.komponenten).toHaveLength(26)
     expect(parseYaml(toYaml(p))).toEqual(p)
   })
   it('Querschnitt mit Komma bleibt erhalten', () => {

@@ -264,7 +264,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
 }
 
 /** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
-const HAUPTSTRANG = ['zaehler', 'sls', 'trennschalter', 'sicherung']
+const HAUPTSTRANG = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung']
 
 function hauptstrang(k: Knoten): Knoten | undefined {
   if (!k.def.durchgang) return undefined
@@ -547,6 +547,13 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       svg.pfad(`M ${x + 2.4} ${ey} H ${x + 3.6} V ${m.mitteY} H ${m.mitteX}`, { strich: '0.8 0.6', breite: 0.25 })
       break
     }
+    case 'klemme': {
+      verbindung(y0, y1)
+      const ym = (y0 + y1) / 2
+      svg.rechteck(x - 3.5, ym - 3, 7, 6, { fuellung: 'none' })
+      svg.kreis(x, ym, 1, { fuellung: '#fff' })
+      break
+    }
     case 'verteiler':
       verbindung(y0, y1)
       svg.rechteck(x - 4, y0 + 2, 8, y1 - y0 - 4, { strich: '1.2 0.8', fuellung: 'none' })
@@ -625,6 +632,11 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     svg.text((a + b) / 2, y0 + 7.8, 'kWh', { groesse: 2.4, anker: 'middle', fett: true })
   }
   if (art === 'sls') svg.text(xmin - 1.5, y0 + 7.6, 'SLS', { groesse: 1.6, anker: 'end' })
+  if (art === 'klemme') {
+    const ym = (y0 + y1) / 2
+    svg.rechteck(xmin - 2.5, ym - 3, xmax - xmin + 5, 6, { fuellung: 'none' })
+    for (const le of n.leiter) svg.kreis(cx(l, le), ym, 1, { farbe: farbe(le), fuellung: '#fff' })
+  }
   if (art === 'verteiler') {
     svg.rechteck(xmin - 3, y0 + 2, xmax - xmin + 6, y1 - y0 - 4, { strich: '1.2 0.8', fuellung: 'none' })
   }

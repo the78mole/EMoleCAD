@@ -5,6 +5,9 @@ export function TypIcon({ art, groesse = 18 }: { art: SymbolArt; groesse?: numbe
   const s = { stroke: 'currentColor', strokeWidth: 1.4, fill: 'none', strokeLinecap: 'round' as const }
   let inhalt
   switch (art) {
+    case 'klemme':
+      inhalt = <><line x1="10" y1="1" x2="10" y2="19" {...s} /><rect x="4" y="6" width="12" height="8" {...s} /><circle cx="10" cy="10" r="2.2" {...s} fill="#fff" /></>
+      break
     case 'hak':
     case 'sicherung':
       inhalt = <><line x1="10" y1="1" x2="10" y2="19" {...s} /><rect x="7" y="5" width="6" height="10" {...s} /></>

@@ -64,6 +64,7 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | typ | Bedeutung | wichtige params |
 |---|---|---|
 | `hausanschluss` | HAK mit Vorsicherung | sicherung, sicherungstyp, netzbetreiber |
+| `hlak` | Hauptleiteranschlussklemme (Einspeisekette) | querschnitt, nennstrom |
 | `zaehler` | Zähler | art (Bezug/Zweirichtung/Erzeugung/Unterzähler), zaehlernummer, messkonzept |
 | `sls` | SLS-Schalter | nennstrom |
 | `trennschalter` | Lasttrennschalter | nennstrom |
@@ -90,13 +91,14 @@ Komponenten, deren `quelle` der Hausanschluss (oder ein anderes Gerät der Einsp
 rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. Überspannungsschutz und ein LS 6 A für Steuerbox und SMGW:
 
 ```yaml
-  - { id: F1,  typ: spd,   quelle: X1 }
-  - { id: F11, typ: ls,    quelle: X1, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
+  - { id: X2,  typ: hlak,  quelle: X1 }
+  - { id: F1,  typ: spd,   quelle: X2 }
+  - { id: F11, typ: ls,    quelle: X2, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
   - { id: K1,  typ: steuerbox, quelle: F11 }
   - { id: K2,  typ: smgw,      quelle: F11 }
 ```
 
-Die Einspeisekette läuft über Zähler, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
+Die Einspeisekette läuft über HLAK, Zähler, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
 
 ### Informationsverbindungen
 

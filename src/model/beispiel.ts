@@ -16,16 +16,21 @@ komponenten:
     typ: hausanschluss
     name: HAK
     params: { sicherung: 63, sicherungstyp: NH00 gG, netzbetreiber: Stadtwerke }
-  # Ungezählter Bereich: parallel zwischen HAK und Zähler
+  - id: X2
+    typ: hlak
+    quelle: X1
+    kabel: { typ: NYY-J, querschnitt: 5x16 }
+    params: { querschnitt: "35", nennstrom: 63 }
+  # Ungezählter Bereich: parallel an der HLAK, vor dem Zähler
   - id: F1
     typ: spd
     name: Überspannungsschutz
-    quelle: X1
+    quelle: X2
     params: { spdtyp: 1+2 }
   - id: F11
     typ: ls
     name: Vorzählerbereich
-    quelle: X1
+    quelle: X2
     phase: L1
     params: { charakteristik: B, nennstrom: 6 }
   - id: K1
@@ -40,8 +45,7 @@ komponenten:
   - id: P1
     typ: zaehler
     name: Zweirichtungszähler
-    quelle: X1
-    kabel: { typ: NYY-J, querschnitt: 5x16 }
+    quelle: X2
     params: { art: Zweirichtung, zaehlernummer: 1EMH0012345678 }
   - id: Q1
     typ: sls
