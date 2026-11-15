@@ -53,6 +53,8 @@ function Innen({ projekt, analyse, onChange }: Props) {
     window.addEventListener('keyup', t)
     return () => { window.removeEventListener('keydown', t); window.removeEventListener('keyup', t) }
   }, [])
+  // React Flow braucht lokalen Knotenzustand (Ziehen); bei Modelländerungen wird er aus dem Projekt neu abgeleitet
+  // oxlint-disable-next-line react/set-state-in-effect -- bewusste Synchronisation Modell -> kontrollierter React-Flow-Zustand
   useEffect(() => setNodes(sollNodes), [sollNodes])
 
   const edges = useMemo<Edge[]>(() => {
@@ -100,7 +102,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
 
   // Ref, damit Callbacks immer den aktuellen Stand sehen
   const pRef = useRef(projekt)
-  pRef.current = projekt
+  useEffect(() => { pRef.current = projekt }, [projekt])
 
   const onNodesChange = useCallback((changes: NodeChange<KomponentenNodeTyp>[]) => {
     const loeschen = changes.filter((c) => c.type === 'remove').map((c) => c.id)
@@ -126,7 +128,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
       for (const c of zug) gerastet.current.delete(c.id)
     }
     setNodes((ns) => applyNodeChanges(changes, ns))
-  }, [onChange])
+  }, [onChange, rf])
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     let p = pRef.current

@@ -578,7 +578,10 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       const w = 10, h = 10, bt = y0 + 2
       if (l.aufwaerts) verbindung(bt + h, y1)
       else verbindung(y0, bt)
-      if (mitKindern) l.aufwaerts ? verbindung(y0, bt) : verbindung(bt + h, y1)
+      if (mitKindern) {
+        if (l.aufwaerts) verbindung(y0, bt)
+        else verbindung(bt + h, y1)
+      }
       svg.rechteck(x - w / 2, bt, w, h)
       boxInhalt(svg, art, x - w / 2, bt, w, h)
       if (art === 'spd') {

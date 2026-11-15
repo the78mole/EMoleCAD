@@ -30,6 +30,7 @@ function schreibe(key: string, v: unknown) {
   try { localStorage.setItem(key, JSON.stringify(v)) } catch { /* egal */ }
 }
 
+// oxlint-disable-next-line react/only-export-components -- Hilfsfunktion für den Export; betrifft nur Fast Refresh im Entwicklungsserver
 export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: DarstellungsOptionen, modi: Modus[]): Blatt[] {
   const v = VORLAGEN.find((x) => x.id === d.vorlage) ?? VORLAGEN[0]
   return modi.map((m, i) =>

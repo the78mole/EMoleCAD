@@ -17,6 +17,8 @@ interface Props {
 export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLoeschen, onSchliessen }: Props) {
   const k = projekt.komponenten.find((x) => x.id === id)
   const [idEntwurf, setIdEntwurf] = useState(id)
+  // Entwurf des ID-Felds zurücksetzen, wenn eine andere Komponente gewählt oder die ID von außen geändert wird
+  // oxlint-disable-next-line react/set-state-in-effect -- bewusste Synchronisation eines lokalen Eingabeentwurfs
   useEffect(() => setIdEntwurf(id), [id])
   if (!k) return null
   const def = typDef(k.typ)
