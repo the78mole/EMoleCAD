@@ -23,12 +23,12 @@ komponenten:
     quelle: X1
     kabel: { typ: NYY-J, querschnitt: 5x16 }
     params: { nennstrom: 63, querschnitt: 12x5 }
-  - id: F1
+  - id: FA1
     typ: spd
     name: Überspannungsschutz
     quelle: W1
     params: { spdtyp: 1+2 }
-  - id: F11
+  - id: F1
     typ: ls
     name: Vorzählerbereich
     quelle: W1
@@ -37,11 +37,11 @@ komponenten:
   - id: K1
     typ: smgw
     name: Smart-Meter-Gateway
-    quelle: F11
+    quelle: F1
   - id: K2
     typ: steuerbox
     name: Steuerbox
-    quelle: F11
+    quelle: F1
     params: { art: FNN-Steuerbox }
   # Gezählter Bereich: SLS -> Zähler -> HLAK -> Verteilung
   - id: Q1
@@ -62,67 +62,67 @@ komponenten:
     name: RCD Allgemein
     quelle: X2
     params: { nennstrom: 40, fehlerstrom: 30, rcdtyp: A }
-  - id: F3
+  - id: F6
     typ: ls
     quelle: F2
     phase: L1
     params: { charakteristik: B, nennstrom: 10 }
-  - id: E1
+  - id: E2
     typ: verbraucher
     name: Licht EG
-    quelle: F3
+    quelle: F6
     kabel: { typ: NYM-J, querschnitt: "3x1,5" }
-  - id: F4
+  - id: F7
     typ: ls
     quelle: F2
     phase: L2
     params: { charakteristik: B, nennstrom: 16 }
-  - id: E2
+  - id: E3
     typ: verbraucher
     name: Steckdosen Küche
-    quelle: F4
+    quelle: F7
     kabel: { typ: NYM-J, querschnitt: "3x2,5" }
     params: { leistung: 2 }
-  - id: F5
+  - id: F8
     typ: ls
     quelle: F2
     phase: L3
     params: { charakteristik: B, nennstrom: 16 }
-  - id: E3
+  - id: E4
     typ: verbraucher
     name: Steckdosen Bad
-    quelle: F5
+    quelle: F8
     kabel: { typ: NYM-J, querschnitt: "3x2,5" }
     params: { leistung: 2 }
-  - id: F6
+  - id: F9
     typ: ls
     quelle: F2
     pole: 3
     params: { charakteristik: B, nennstrom: 16 }
-  - id: E4
+  - id: E5
     typ: verbraucher
     name: Herd
-    quelle: F6
+    quelle: F9
     kabel: { typ: NYM-J, querschnitt: "5x2,5" }
     pole: 3
     params: { leistung: 10 }
-  - id: F7
+  - id: F3
     typ: rcd
     name: RCD Wallbox
     quelle: X2
     params: { nennstrom: 40, fehlerstrom: 30, rcdtyp: A EV }
-  - id: F8
+  - id: F10
     typ: ls
-    quelle: F7
+    quelle: F3
     pole: 3
     params: { charakteristik: C, nennstrom: 20 }
-  - id: E5
+  - id: E6
     typ: wallbox
     name: Wallbox Carport
-    quelle: F8
+    quelle: F10
     kabel: { typ: NYM-J, querschnitt: 5x6, laenge: 15 }
     params: { leistung: 11, steuerbar: true }
-  - id: F9
+  - id: F4
     typ: ls
     quelle: X2
     pole: 3
@@ -130,7 +130,7 @@ komponenten:
   - id: T1
     typ: wechselrichter
     name: PV-Wechselrichter
-    quelle: F9
+    quelle: F4
     kabel: { typ: NYM-J, querschnitt: 5x4 }
     params: { leistung: 10, hersteller: Hybrid-WR, hybrid: true }
   - id: G1
@@ -144,15 +144,15 @@ komponenten:
     name: Batteriespeicher
     quelle: T1
     params: { kapazitaet: 10, leistung: 5 }
-  - id: F10
+  - id: F5
     typ: ls
     quelle: X2
     pole: 3
     params: { charakteristik: C, nennstrom: 16 }
-  - id: E6
+  - id: E1
     typ: waermepumpe
     name: Wärmepumpe
-    quelle: F10
+    quelle: F5
     kabel: { typ: NYM-J, querschnitt: "5x2,5" }
     params: { leistung: 4, steuerbar: true }
 # Informationsverbindungen (strichpunktiert im Plan)

@@ -13,7 +13,7 @@ describe('YAML', () => {
   })
   it('Querschnitt mit Komma bleibt erhalten', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    expect(p.komponenten.find((k) => k.id === 'E1')!.kabel!.querschnitt).toBe('3x1,5')
+    expect(p.komponenten.find((k) => k.id === 'E2')!.kabel!.querschnitt).toBe('3x1,5')
   })
   it('meldet Syntaxfehler mit Zeile', () => {
     try { parseYaml('komponenten:\n  - id: X1\n   typ: [') ; expect.fail() } catch (e) {
@@ -29,7 +29,7 @@ describe('Analyse', () => {
   it('Beispiel ist fehlerfrei und leitet Leiter ab', () => {
     const a = analysiere(parseYaml(BEISPIEL_YAML))
     expect(a.meldungen.filter((m) => m.stufe !== 'info')).toEqual([])
-    expect(a.knoten.get('E2')!.leiter).toEqual(['L2', 'N', 'PE'])
+    expect(a.knoten.get('E3')!.leiter).toEqual(['L2', 'N', 'PE'])
     expect(a.knoten.get('G1')!.leiter).toEqual(['L+', 'L-'])
     expect(a.knoten.get('E5')!.leiter).toHaveLength(5)
   })
@@ -55,7 +55,7 @@ describe('Operationen', () => {
   it('hinzufügen, umbenennen, löschen', () => {
     let p = parseYaml(BEISPIEL_YAML)
     const r = hinzufuegen(p, 'ls', { x: 0, y: 0 }, 'Q1')
-    expect(r.id).toBe('F12')
+    expect(r.id).toBe('F11')
     p = aktualisieren(r.projekt, 'Q1', { ...r.projekt.komponenten.find((k) => k.id === 'Q1')!, id: 'Q9' })
     expect(p.komponenten.filter((k) => k.quelle === 'Q9').length).toBeGreaterThan(0)
     expect(istVorfahr(p, 'Q9', 'E1')).toBe(true)
@@ -101,7 +101,8 @@ describe('Neu nummerieren', () => {
     const p = parseYaml(BEISPIEL_YAML)
     const n = neuNummerieren({ ...p, editor: undefined })
     const typ = (id: string) => n.komponenten.find((k) => k.id === id)!.typ
-    expect(typ('F1')).toBe('spd')
+    expect(typ('FA1')).toBe('spd')
+    expect(typ('F1')).toBe('ls')
     // alle Geräte der oberen Verteilerreihe (RCDs, LS direkt an der HLAK) vor den LS darunter
     const nr = (k: { id: string }) => Number(k.id.slice(1))
     const oben = n.komponenten.filter((k) => k.quelle === 'X2').map(nr)
@@ -117,7 +118,7 @@ describe('Plan', () => {
     for (const modus of ['einpolig', 'allpolig'] as const) {
       const plan = zeichnePlan(a, { modus, farbig: true, netz: p.netz })
       expect(plan.breite).toBeGreaterThan(100)
-      expect(plan.inhalt).toContain('-F11')
+      expect(plan.inhalt).toContain('-F10')
       expect(plan.inhalt).not.toContain('NaN')
       expect(plan.inhalt).toContain('Stromkreis')
       const baum = zeichnePlan(a, { modus, farbig: true, netz: p.netz, anordnung: 'baum' })

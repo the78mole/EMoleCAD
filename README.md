@@ -105,11 +105,11 @@ rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. 
 
 ```yaml
   - { id: W1,  typ: sammelschiene, quelle: X1 }
-  - { id: F1,  typ: spd,   quelle: W1 }
+  - { id: FA1, typ: spd,   quelle: W1 }
   - { id: Q1,  typ: sls,   quelle: W1 }   # weiter zum Zähler P1, danach HLAK X2
-  - { id: F11, typ: ls,    quelle: W1, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
-  - { id: K1,  typ: steuerbox, quelle: F11 }
-  - { id: K2,  typ: smgw,      quelle: F11 }
+  - { id: F1,  typ: ls,    quelle: W1, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
+  - { id: K1,  typ: smgw,      quelle: F1 }
+  - { id: K2,  typ: steuerbox, quelle: F1 }
 ```
 
 Die Einspeisekette läuft über Sammelschiene, SLS, Zähler, HLAK, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.

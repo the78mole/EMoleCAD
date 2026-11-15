@@ -122,7 +122,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.charakteristik)}${n(p.nennstrom)} ${n(p.fehlerstrom)}mA`,
   },
   {
-    typ: 'spd', label: 'Überspannungsschutz (SPD)', kategorie: 'Schutz', bmk: 'F', farbe: '#eab308',
+    typ: 'spd', label: 'Überspannungsschutz (SPD)', kategorie: 'Schutz', bmk: 'FA', farbe: '#eab308',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'spd',
     params: [{ key: 'spdtyp', label: 'Typ', art: 'auswahl', optionen: ['1+2', '2', '3'], standard: '1+2' }],
     kurz: (p) => `SPD Typ ${n(p.spdtyp)}`,
