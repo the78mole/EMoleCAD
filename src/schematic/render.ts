@@ -378,16 +378,31 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       default: return { p: [l.x + g.hb, g.mitte + v], s: [l.x + g.hb + stich, g.mitte + v] }
     }
   }
+  // Verweis-Stiche auf andere Blätter je Gerät zählen, damit sie gestaffelt werden können
+  const verweisZiel = (d: Datenverbindung) => {
+    const a = nachId.get(d.von), b = nachId.get(d.nach)
+    const fern = !a ? d.von : !b ? d.nach : undefined
+    const ziel = fern ? o.blatt?.ort.get(fern) : undefined
+    return (a || b) && ziel ? { l: (a ?? b)!, ziel } : undefined
+  }
+  const stichGesamt = new Map<Lage, number>()
+  for (const d of liste) { const v = verweisZiel(d); if (v) stichGesamt.set(v.l, (stichGesamt.get(v.l) ?? 0) + 1) }
+  const stichNr = new Map<Lage, number>()
   liste.forEach((d, i) => {
     let a = nachId.get(d.von), b = nachId.get(d.nach)
     // Gegenstelle auf einem anderen Blatt: kurzer Stich mit Verweis
-    const fern = !a ? d.von : !b ? d.nach : undefined
-    const ziel = fern ? o.blatt?.ort.get(fern) : undefined
-    if ((a || b) && ziel) {
-      const l = (a ?? b)!
+    const verweis = verweisZiel(d)
+    if (verweis) {
+      const { l, ziel } = verweis
+      const nr = stichNr.get(l) ?? 0
+      stichNr.set(l, nr + 1)
+      const senkrecht = seite(l) === 'oben' || seite(l) === 'unten'
+      // oben/unten: der linke Stich geht am weitesten hinaus, so kreuzt keine Waagerechte einen anderen Stich
+      const stufe = senkrecht ? (stichGesamt.get(l) ?? 1) - 1 - nr : 0
       // Stich über die übrigen Leitungen hinaus, damit er sich nicht mit ihnen kreuzt
-      const q = anschluss(l, 3 + liste.length * 1.6)
-      const ende = [q.s[0] + 4, q.s[1]]
+      const q = anschluss(l, 3 + liste.length * 1.6 + stufe * 2.8)
+      const rechtsterStich = l.x + (((gesamt.get(l.n.k.id) ?? 1) - 1) / 2) * 2.5
+      const ende = [senkrecht ? Math.max(q.s[0], rechtsterStich) + 3 : q.s[0] + 4, q.s[1]]
       svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
       svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
       const text = `${d.art ? d.art + ' ' : ''}→ ${ziel.bmk} (Blatt ${ziel.blatt})`

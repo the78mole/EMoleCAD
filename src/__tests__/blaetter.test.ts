@@ -70,3 +70,16 @@ describe('Blattaufteilung – Randfälle', () => {
     expect(b2.breite).toBeGreaterThan(x + 15)
   })
 })
+
+describe('Verweis-Stiche', () => {
+  it('mehrere Verweise an einem Gerät liegen auf verschiedenen Höhen', () => {
+    const p = modul2()
+    p.datenverbindungen!.push({ von: 'KE2', nach: 'EG1', art: 'Steuersignal' }, { von: 'KE2', nach: 'XD5', art: 'Steuersignal' })
+    for (const modus of ['einpolig', 'allpolig'] as const) {
+      const [b1] = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen })
+      const ys = [...b1.inhalt.matchAll(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Steuersignal → /g)].map((m) => Number(m[1]))
+      expect(ys).toHaveLength(2)
+      expect(Math.abs(ys[0] - ys[1])).toBeGreaterThan(2)
+    }
+  })
+})
