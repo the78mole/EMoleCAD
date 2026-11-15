@@ -317,19 +317,30 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     }
   }
   liste.forEach((d, i) => {
-    const a = nachId.get(d.von), b = nachId.get(d.nach)
+    let a = nachId.get(d.von), b = nachId.get(d.nach)
     if (!a || !b || a === b) return
+    // Geräte in der Einspeisekette werden seitlich angefahren: dort immer als Ziel routen
+    if (seite(a) === 'links' && seite(b) !== 'links') [a, b] = [b, a]
     const stich = 3 + i * 1.6
     const q = anschluss(a, stich), z = anschluss(b, stich)
-    const ecke = [z.s[0], q.s[1]]
-    const pkt = [q.p, q.s, ecke, z.s, z.p]
+    let pkt: number[][]
+    let ecke: number[]
+    if (seite(b) === 'links') {
+      // Querweg oberhalb der Beschriftung des Zielgeräts führen
+      const spur = Math.min(q.s[1], b.symTop - 1.5 - i * 1.6)
+      ecke = [z.s[0], spur]
+      pkt = [q.p, q.s, [q.s[0], spur], ecke, z.s, z.p]
+    } else {
+      ecke = [z.s[0], q.s[1]]
+      pkt = [q.p, q.s, ecke, z.s, z.p]
+    }
     svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
     svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
     svg.kreis(z.p[0], z.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
     if (d.art) {
       const lang = Math.abs(ecke[0] - q.s[0]) > 8
       const tx = lang ? (q.s[0] + ecke[0]) / 2 : z.s[0] + 1
-      const ty = lang ? q.s[1] - 0.8 : (ecke[1] + z.s[1]) / 2
+      const ty = lang ? ecke[1] - 0.8 : (ecke[1] + z.s[1]) / 2
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
   })

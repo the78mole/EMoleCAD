@@ -16,21 +16,22 @@ komponenten:
     typ: hausanschluss
     name: HAK
     params: { sicherung: 63, sicherungstyp: NH00 gG, netzbetreiber: Stadtwerke }
-  - id: X2
-    typ: hlak
+  # Ungezählter Bereich: Sammelschiene direkt nach dem HAK
+  - id: W1
+    typ: sammelschiene
+    name: Sammelschiene ungezählt
     quelle: X1
     kabel: { typ: NYY-J, querschnitt: 5x16 }
-    params: { querschnitt: "35", nennstrom: 63 }
-  # Ungezählter Bereich: parallel an der HLAK, vor dem Zähler
+    params: { nennstrom: 63, querschnitt: 12x5 }
   - id: F1
     typ: spd
     name: Überspannungsschutz
-    quelle: X2
+    quelle: W1
     params: { spdtyp: 1+2 }
   - id: F11
     typ: ls
     name: Vorzählerbereich
-    quelle: X2
+    quelle: W1
     phase: L1
     params: { charakteristik: B, nennstrom: 6 }
   - id: K1
@@ -42,24 +43,24 @@ komponenten:
     typ: smgw
     name: Smart-Meter-Gateway
     quelle: F11
+  # Gezählter Bereich: SLS -> Zähler -> HLAK -> Verteilung
+  - id: Q1
+    typ: sls
+    quelle: W1
+    params: { nennstrom: 50 }
   - id: P1
     typ: zaehler
     name: Zweirichtungszähler
-    quelle: X2
-    params: { art: Zweirichtung, zaehlernummer: 1EMH0012345678 }
-  - id: Q1
-    typ: sls
-    quelle: P1
-    params: { nennstrom: 50 }
-  - id: W1
-    typ: sammelschiene
-    name: Hauptsammelschiene
     quelle: Q1
-    params: { nennstrom: 63, querschnitt: 12x5 }
+    params: { art: Zweirichtung, zaehlernummer: 1EMH0012345678 }
+  - id: X2
+    typ: hlak
+    quelle: P1
+    params: { querschnitt: "35", nennstrom: 63 }
   - id: F2
     typ: rcd
     name: RCD Allgemein
-    quelle: W1
+    quelle: X2
     params: { nennstrom: 40, fehlerstrom: 30, rcdtyp: A }
   - id: F3
     typ: ls
@@ -108,7 +109,7 @@ komponenten:
   - id: F7
     typ: rcd
     name: RCD Wallbox
-    quelle: W1
+    quelle: X2
     params: { nennstrom: 40, fehlerstrom: 30, rcdtyp: A EV }
   - id: F8
     typ: ls
@@ -123,7 +124,7 @@ komponenten:
     params: { leistung: 11, steuerbar: true }
   - id: F9
     typ: ls
-    quelle: W1
+    quelle: X2
     pole: 3
     params: { charakteristik: B, nennstrom: 20 }
   - id: T1
@@ -145,7 +146,7 @@ komponenten:
     params: { kapazitaet: 10, leistung: 5 }
   - id: F10
     typ: ls
-    quelle: W1
+    quelle: X2
     pole: 3
     params: { charakteristik: C, nennstrom: 16 }
   - id: E6

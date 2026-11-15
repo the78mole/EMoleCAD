@@ -92,14 +92,15 @@ Komponenten, deren `quelle` der Hausanschluss (oder ein anderes Gerät der Einsp
 rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. Überspannungsschutz und ein LS 6 A für Steuerbox und SMGW:
 
 ```yaml
-  - { id: X2,  typ: hlak,  quelle: X1 }
-  - { id: F1,  typ: spd,   quelle: X2 }
-  - { id: F11, typ: ls,    quelle: X2, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
+  - { id: W1,  typ: sammelschiene, quelle: X1 }
+  - { id: F1,  typ: spd,   quelle: W1 }
+  - { id: Q1,  typ: sls,   quelle: W1 }   # weiter zum Zähler P1, danach HLAK X2
+  - { id: F11, typ: ls,    quelle: W1, phase: L1, params: { charakteristik: B, nennstrom: 6 } }
   - { id: K1,  typ: steuerbox, quelle: F11 }
   - { id: K2,  typ: smgw,      quelle: F11 }
 ```
 
-Die Einspeisekette läuft über HLAK, Zähler, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
+Die Einspeisekette läuft über Sammelschiene, SLS, Zähler, HLAK, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
 
 ### Informationsverbindungen
 
