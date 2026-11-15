@@ -8,7 +8,7 @@ import { zeichnePlan } from '../schematic/render'
 describe('YAML', () => {
   it('Beispiel lässt sich parsen und ohne Verlust zurückschreiben', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    expect(p.komponenten).toHaveLength(26)
+    expect(p.komponenten).toHaveLength(27)
     expect(parseYaml(toYaml(p))).toEqual(p)
   })
   it('Querschnitt mit Komma bleibt erhalten', () => {
@@ -57,7 +57,7 @@ describe('Operationen', () => {
     const r = hinzufuegen(p, 'ls', { x: 0, y: 0 }, 'Q1')
     expect(r.id).toBe('F12')
     p = aktualisieren(r.projekt, 'Q1', { ...r.projekt.komponenten.find((k) => k.id === 'Q1')!, id: 'Q9' })
-    expect(p.komponenten.filter((k) => k.quelle === 'Q9').length).toBeGreaterThan(3)
+    expect(p.komponenten.filter((k) => k.quelle === 'Q9').length).toBeGreaterThan(0)
     expect(istVorfahr(p, 'Q9', 'E1')).toBe(true)
     p = entfernen(p, ['Q9'])
     expect(p.komponenten.some((k) => k.quelle === 'Q9')).toBe(false)

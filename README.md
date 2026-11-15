@@ -81,6 +81,7 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `verbraucher` | Verbraucher / Stromkreis | leistung |
 | `steuerbox` | Steuerbox / Rundsteuerempfänger | art |
 | `smgw` | Smart-Meter-Gateway | hersteller |
+| `sammelschiene` | Sammelschiene (Abgänge hängen daran) | nennstrom, querschnitt |
 | `unterverteilung` | Unterverteilung | ort |
 
 Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).

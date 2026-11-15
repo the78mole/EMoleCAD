@@ -3,7 +3,7 @@ import type { ParamWert } from './types'
 export type SymbolArt =
   | 'hak' | 'zaehler' | 'sls' | 'trenner' | 'sicherung' | 'ls' | 'rcd' | 'rcbo' | 'spd'
   | 'wechselrichter' | 'pvgen' | 'speicher' | 'wallbox' | 'waermepumpe' | 'verbraucher'
-  | 'steuerbox' | 'smgw' | 'verteiler' | 'klemme'
+  | 'steuerbox' | 'smgw' | 'verteiler' | 'klemme' | 'schiene'
 
 export interface ParamDef {
   key: string
@@ -191,6 +191,15 @@ export const BIBLIOTHEK: TypDef[] = [
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'smgw',
     params: [{ key: 'hersteller', label: 'Hersteller/Typ', art: 'text', standard: '' }],
     kurz: (p) => n(p.hersteller) || 'SMGW',
+  },
+  {
+    typ: 'sammelschiene', label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'W', farbe: '#1e293b',
+    pole: 3, poleWaehlbar: false, kinder: true, durchgang: true, symbol: 'schiene',
+    params: [
+      { key: 'nennstrom', label: 'Bemessungsstrom', art: 'zahl', einheit: 'A', standard: 63 },
+      { key: 'querschnitt', label: 'Schienenquerschnitt', art: 'text', standard: '12x5' },
+    ],
+    kurz: (p) => `Sammelschiene${p.nennstrom ? ' ' + p.nennstrom + 'A' : ''}${p.querschnitt ? ' ' + p.querschnitt : ''}`,
   },
   {
     typ: 'unterverteilung', label: 'Unterverteilung', kategorie: 'Sonstiges', bmk: 'W', farbe: '#334155',

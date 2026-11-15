@@ -215,7 +215,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       const min = Math.min(...xs), max = Math.max(...xs)
       const fa = farbe(le)
       if (!istAbzweig) svg.linie(px, l.kette || l.aufwaerts ? l.symTop : l.symBot, px, y, { farbe: fa })
-      if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa, breite: istKopf ? 0.5 : 0.35 })
+      const schiene = l.n.def.symbol === 'schiene'
+      if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa, breite: schiene ? (allp ? 0.8 : 1.1) : istKopf ? 0.5 : 0.35 })
       for (const p of punkte) {
         const grad = p.senk + (p.x > min + 0.01 ? 1 : 0) + (p.x < max - 0.01 ? 1 : 0)
         if (grad >= 3) svg.punkt(p.x, y, fa)
@@ -250,7 +251,13 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
-    beschriftung(svg, l, allp, cx, hager && o.tabelle !== false)
+    if (n.def.symbol === 'schiene' && l.kette && n === kette[kette.length - 1]) {
+      // Sammelschiene als Kopf der Einspeisung: Beschriftung an der Schiene
+      const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+      const ty = busTop - 1.6
+      svg.text(l.x + (allp ? 12 : 4), ty, `${n.bmk}  ${n.k.name ?? kurz}`, { groesse: 2.3, fett: true })
+      if (n.k.name && kurz) svg.text(l.x + (allp ? 12 : 4) + 40, ty, kurz, { groesse: 1.9, farbe: '#333' })
+    } else beschriftung(svg, l, allp, cx, hager && o.tabelle !== false)
   }
 
   datenLinien(svg, lagen, o, allp, cx)
@@ -547,6 +554,9 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       svg.pfad(`M ${x + 2.4} ${ey} H ${x + 3.6} V ${m.mitteY} H ${m.mitteX}`, { strich: '0.8 0.6', breite: 0.25 })
       break
     }
+    case 'schiene':
+      verbindung(y0, y1)
+      break
     case 'klemme': {
       verbindung(y0, y1)
       const ym = (y0 + y1) / 2
