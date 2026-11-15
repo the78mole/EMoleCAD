@@ -187,26 +187,30 @@ describe('Potentialausgleich', () => {
   it('PAS steht außerhalb des Strompfads und ohne Meldungen', () => {
     const p = parseYaml(BEISPIEL_YAML)
     const a = analysiere(p)
-    expect(a.potential.map((n) => n.k.id)).toEqual(['XE1'])
-    expect(a.wurzeln.some((n) => n.k.id === 'XE1')).toBe(false)
-    expect(a.meldungen.filter((m) => m.id === 'XE1')).toEqual([])
+    expect(a.potential.map((n) => n.k.id)).toEqual(['PAS1'])
+    expect(a.wurzeln.some((n) => n.k.id === 'PAS1')).toBe(false)
+    expect(a.meldungen.filter((m) => m.id === 'PAS1')).toEqual([])
   })
   it('Verbindungen folgen Umbenennen, Löschen und Neu nummerieren', () => {
     let p = parseYaml(BEISPIEL_YAML)
     expect(p.potentialausgleich).toHaveLength(3)
-    p = aktualisieren(p, 'XE1', { ...p.komponenten.find((k) => k.id === 'XE1')!, id: 'XE9' })
-    expect(p.potentialausgleich!.every((d) => d.von === 'XE9')).toBe(true)
+    p = aktualisieren(p, 'PAS1', { ...p.komponenten.find((k) => k.id === 'PAS1')!, id: 'PAS9' })
+    expect(p.potentialausgleich!.every((d) => d.von === 'PAS9')).toBe(true)
     const paare = (q: typeof p) => q.potentialausgleich!.map((d) => `${d.von}-${d.nach}`)
-    expect(paare(neuNummerieren(p))).toEqual(['XE1-XD1', 'XE1-WD1', 'XE1-FA1'])
-    expect(paVerbinden(p, 'FA1', 'XE9')).toBe(p) // schon vorhanden (Richtung egal)
-    expect(paare(paTrennen(p, 'WD1', 'XE9'))).toEqual(['XE9-XD1', 'XE9-FA1'])
-    expect(entfernen(p, ['XE9']).potentialausgleich).toEqual([])
+    const n = neuNummerieren(p)
+    expect(paare(n)).toEqual(['PAS1-XD1', 'PAS1-WD1', 'PAS1-FA1'])
+    expect(n.komponenten.find((k) => k.id === 'PAS1')?.typ).toBe('pas') // Schiene selbst mit umbenannt
+    expect(paVerbinden(p, 'FA1', 'PAS9')).toBe(p) // schon vorhanden (Richtung egal)
+    expect(paare(paTrennen(p, 'WD1', 'PAS9'))).toEqual(['PAS9-XD1', 'PAS9-FA1'])
+    // Löschen der Schiene entfernt nur ihre eigenen Verbindungen
+    const mitDirekt = paVerbinden(p, 'XD1', 'FA1')
+    expect(paare(entfernen(mitDirekt, ['PAS9']))).toEqual(['XD1-FA1'])
   })
   it('wird grün gezeichnet, SPD ohne eigenes Erdungssymbol', () => {
     const p = parseYaml(BEISPIEL_YAML)
     for (const modus of ['einpolig', 'allpolig'] as const) {
       const plan = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz, pa: p.potentialausgleich })
-      expect(plan.inhalt).toContain('-XE1')
+      expect(plan.inhalt).toContain('-PAS1')
       expect(plan.inhalt).toContain('16 mm²')
       expect(plan.inhalt).toContain('#2e9e3e')
       // drei Anschlusspunkte der Leitungen und nur noch ein Erder (an der PAS, nicht am SPD)
@@ -221,12 +225,12 @@ describe('Potentialausgleich', () => {
   it('meldet Doppelte, ungeeignete Partner und PAS als Quelle', () => {
     const p = parseYaml(`komponenten:
   - { id: XD1, typ: hausanschluss }
-  - { id: XE1, typ: pas }
-  - { id: FC1, typ: ls, quelle: XE1 }
+  - { id: PAS1, typ: pas }
+  - { id: FC1, typ: ls, quelle: PAS1 }
 potentialausgleich:
-  - { von: XE1, nach: XD1 }
-  - { von: XD1, nach: XE1 }
-  - { von: XE1, nach: FC1 }
+  - { von: PAS1, nach: XD1 }
+  - { von: XD1, nach: PAS1 }
+  - { von: PAS1, nach: FC1 }
 `)
     expect(p.potentialausgleich).toHaveLength(2)
     const texte = analysiere(p).meldungen.map((m) => m.text).join('\n')
@@ -235,7 +239,7 @@ potentialausgleich:
     expect(texte).not.toMatch(/Kreis/)
   })
   it('zeichnet einen Plan nur mit PAS', () => {
-    const p = parseYaml('komponenten:\n  - { id: XE1, typ: pas }\n')
-    expect(zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz }).inhalt).toContain('-XE1')
+    const p = parseYaml('komponenten:\n  - { id: PAS1, typ: pas }\n')
+    expect(zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz }).inhalt).toContain('-PAS1')
   })
 })
