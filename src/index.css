@@ -126,6 +126,10 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .react-flow__handle.daten-handle:hover { background: #8e24aa; }
 .react-flow__edge.kante-daten path { stroke: #8e24aa; stroke-width: 1.4; stroke-dasharray: 8 3 2 3; }
 .react-flow__edge.kante-daten .react-flow__edge-text { fill: #8e24aa; }
+.react-flow__handle.pa-handle { width: 9px; height: 9px; border-radius: 50%; border-color: #2e9e3e; background: #e8f5e9; top: 78%; }
+.react-flow__handle.pa-handle:hover { background: #2e9e3e; }
+.react-flow__edge.kante-pa path { stroke: #2e9e3e; stroke-width: 1.6; }
+.react-flow__edge.kante-pa .react-flow__edge-text { fill: #2e9e3e; }
 .daten-zeile { align-items: center; }
 .daten-zeile .daten-ziel { flex: none; width: 52px; font-size: 12px; font-weight: 600; }
 .daten-zeile input { flex: 1; }

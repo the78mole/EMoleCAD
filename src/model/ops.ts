@@ -19,15 +19,18 @@ export function aktualisieren(p: Projekt, id: string, neu: Komponente): Projekt 
   let komponenten = p.komponenten.map((k) => (k.id === id ? neu : k))
   let editor = p.editor
   let datenverbindungen = p.datenverbindungen
+  let potentialausgleich = p.potentialausgleich
   if (neu.id !== id) {
+    const m = (x: string) => (x === id ? neu.id : x)
     komponenten = komponenten.map((k) => (k.quelle === id ? { ...k, quelle: neu.id } : k))
-    datenverbindungen = datenverbindungen?.map((d) => ({ ...d, von: d.von === id ? neu.id : d.von, nach: d.nach === id ? neu.id : d.nach }))
+    datenverbindungen = datenverbindungen?.map((d) => ({ ...d, von: m(d.von), nach: m(d.nach) }))
+    potentialausgleich = potentialausgleich?.map((d) => ({ ...d, von: m(d.von), nach: m(d.nach) }))
     if (editor?.[id]) {
       editor = { ...editor, [neu.id]: editor[id] }
       delete editor[id]
     }
   }
-  return { ...p, komponenten, editor, datenverbindungen }
+  return { ...p, komponenten, editor, datenverbindungen, potentialausgleich }
 }
 
 export function entfernen(p: Projekt, ids: string[]): Projekt {
@@ -38,6 +41,7 @@ export function entfernen(p: Projekt, ids: string[]): Projekt {
     ...p,
     editor,
     datenverbindungen: p.datenverbindungen?.filter((d) => !weg.has(d.von) && !weg.has(d.nach)),
+    potentialausgleich: p.potentialausgleich?.filter((d) => !weg.has(d.von) && !weg.has(d.nach)),
     komponenten: p.komponenten
       .filter((k) => !weg.has(k.id))
       .map((k) => (k.quelle && weg.has(k.quelle) ? { ...k, quelle: undefined } : k)),
@@ -119,6 +123,7 @@ export function neuNummerieren(p: Projekt): Projekt {
     ...p,
     komponenten: p.komponenten.map((k) => ({ ...k, id: m(k.id), quelle: k.quelle ? m(k.quelle) : undefined })),
     datenverbindungen: p.datenverbindungen?.map((d) => ({ ...d, von: m(d.von), nach: m(d.nach) })),
+    potentialausgleich: p.potentialausgleich?.map((d) => ({ ...d, von: m(d.von), nach: m(d.nach) })),
     editor: Object.fromEntries(Object.entries(editor).filter(([id]) => neu.has(id)).map(([id, v]) => [m(id), v])),
   }
 }
@@ -155,5 +160,26 @@ export function autoLayout(p: Projekt): Record<string, { x: number; y: number }>
     setze(w, start)
     start = Math.max(0, ...Array.from(frei, (f) => f ?? 0)) + 0.5
   })
+  // Potentialausgleichsschienen unter den Baum, links beginnend
+  const yPa = (Math.max(-1, ...Object.values(pos).map((v) => v.y / BY)) + 1) * BY
+  a.potential.forEach((n, i) => { pos[n.k.id] = { x: i * BX, y: yPa } })
   return pos
+}
+
+// ---------- Potentialausgleich ----------
+
+const paGleich = (d: { von: string; nach: string }, a: string, b: string) => (d.von === a && d.nach === b) || (d.von === b && d.nach === a)
+
+export function paVerbinden(p: Projekt, von: string, nach: string): Projekt {
+  const liste = p.potentialausgleich ?? []
+  if (von === nach || liste.some((d) => paGleich(d, von, nach))) return p
+  return { ...p, potentialausgleich: [...liste, { von, nach }] }
+}
+
+export function paTrennen(p: Projekt, von: string, nach: string): Projekt {
+  return { ...p, potentialausgleich: (p.potentialausgleich ?? []).filter((d) => !paGleich(d, von, nach)) }
+}
+
+export function paQuerschnittSetzen(p: Projekt, von: string, nach: string, querschnitt: string): Projekt {
+  return { ...p, potentialausgleich: (p.potentialausgleich ?? []).map((d) => (paGleich(d, von, nach) ? (querschnitt ? { ...d, querschnitt } : { von: d.von, nach: d.nach }) : d)) }
 }

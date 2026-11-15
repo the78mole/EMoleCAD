@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { BEISPIEL_YAML } from '../model/beispiel'
 import { parseYaml, toYaml, YamlFehler } from '../model/yaml'
 import { analysiere } from '../model/analyse'
-import { hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren } from '../model/ops'
+import { hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren, paTrennen, paVerbinden } from '../model/ops'
 import { zeichnePlan } from '../schematic/render'
 
 describe('YAML', () => {
   it('Beispiel lässt sich parsen und ohne Verlust zurückschreiben', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    expect(p.komponenten).toHaveLength(27)
+    expect(p.komponenten).toHaveLength(28)
     expect(parseYaml(toYaml(p))).toEqual(p)
   })
   it('Querschnitt mit Komma bleibt erhalten', () => {
@@ -180,5 +180,62 @@ describe('Plan', () => {
       expect(baum.inhalt).not.toContain('Stromkreis')
       expect(baum.inhalt).not.toContain('NaN')
     }
+  })
+})
+
+describe('Potentialausgleich', () => {
+  it('PAS steht außerhalb des Strompfads und ohne Meldungen', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    const a = analysiere(p)
+    expect(a.potential.map((n) => n.k.id)).toEqual(['XE1'])
+    expect(a.wurzeln.some((n) => n.k.id === 'XE1')).toBe(false)
+    expect(a.meldungen.filter((m) => m.id === 'XE1')).toEqual([])
+  })
+  it('Verbindungen folgen Umbenennen, Löschen und Neu nummerieren', () => {
+    let p = parseYaml(BEISPIEL_YAML)
+    expect(p.potentialausgleich).toHaveLength(3)
+    p = aktualisieren(p, 'XE1', { ...p.komponenten.find((k) => k.id === 'XE1')!, id: 'XE9' })
+    expect(p.potentialausgleich!.every((d) => d.von === 'XE9')).toBe(true)
+    const paare = (q: typeof p) => q.potentialausgleich!.map((d) => `${d.von}-${d.nach}`)
+    expect(paare(neuNummerieren(p))).toEqual(['XE1-XD1', 'XE1-WD1', 'XE1-FA1'])
+    expect(paVerbinden(p, 'FA1', 'XE9')).toBe(p) // schon vorhanden (Richtung egal)
+    expect(paare(paTrennen(p, 'WD1', 'XE9'))).toEqual(['XE9-XD1', 'XE9-FA1'])
+    expect(entfernen(p, ['XE9']).potentialausgleich).toEqual([])
+  })
+  it('wird grün gezeichnet, SPD ohne eigenes Erdungssymbol', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    for (const modus of ['einpolig', 'allpolig'] as const) {
+      const plan = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz, pa: p.potentialausgleich })
+      expect(plan.inhalt).toContain('-XE1')
+      expect(plan.inhalt).toContain('16 mm²')
+      expect(plan.inhalt).toContain('#2e9e3e')
+      // drei Anschlusspunkte der Leitungen und nur noch ein Erder (an der PAS, nicht am SPD)
+      expect(plan.inhalt.match(/<circle[^>]*r="0.45" fill="#2e9e3e" stroke="#2e9e3e"/g)?.length).toBe(3)
+      // Erdungssymbol = waagerechte Linie mit 1,2 mm Länge (unterster Strich)
+      const erden = (t: string) => [...t.matchAll(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g)].filter((m) => m[2] === m[4] && Math.abs(+m[3] - +m[1] - 1.2) < 0.01).length
+      const ohne = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz })
+      expect(erden(ohne.inhalt)).toBe(2) // SPD und unverbundene PAS
+      expect(erden(plan.inhalt)).toBe(1) // nur PAS, SPD-Erde entfällt
+    }
+  })
+  it('meldet Doppelte, ungeeignete Partner und PAS als Quelle', () => {
+    const p = parseYaml(`komponenten:
+  - { id: XD1, typ: hausanschluss }
+  - { id: XE1, typ: pas }
+  - { id: FC1, typ: ls, quelle: XE1 }
+potentialausgleich:
+  - { von: XE1, nach: XD1 }
+  - { von: XD1, nach: XE1 }
+  - { von: XE1, nach: FC1 }
+`)
+    expect(p.potentialausgleich).toHaveLength(2)
+    const texte = analysiere(p).meldungen.map((m) => m.text).join('\n')
+    expect(texte).toMatch(/FC1.*nicht vorgesehen/)
+    expect(texte).toMatch(/kann keine Quelle sein/)
+    expect(texte).not.toMatch(/Kreis/)
+  })
+  it('zeichnet einen Plan nur mit PAS', () => {
+    const p = parseYaml('komponenten:\n  - { id: XE1, typ: pas }\n')
+    expect(zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz }).inhalt).toContain('-XE1')
   })
 })

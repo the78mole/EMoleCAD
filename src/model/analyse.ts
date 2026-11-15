@@ -25,6 +25,8 @@ export interface Meldung {
 
 export interface Analyse {
   wurzeln: Knoten[]
+  /** Potentialausgleichsschienen (nicht Teil des Strompfads) */
+  potential: Knoten[]
   knoten: Map<string, Knoten>
   meldungen: Meldung[]
   phasenlast: Record<Phase, number>
@@ -51,8 +53,16 @@ export function analysiere(p: Projekt): Analyse {
   }
 
   const wurzeln: Knoten[] = []
+  const potential: Knoten[] = []
   for (const n of knoten.values()) {
     const q = n.k.quelle
+    if (n.def.potential) {
+      potential.push(n)
+      n.leiter = ['PE']
+      n.pole = 1
+      if (q) meldungen.push({ stufe: 'warnung', text: `${n.bmk}: eine ${n.def.label} hat keine Quelle; Anschluss über Potentialausgleich`, id: n.k.id })
+      continue
+    }
     if (!q) {
       wurzeln.push(n)
       if (!n.def.wurzel) meldungen.push({ stufe: 'warnung', text: `${n.bmk} hat keine Quelle (nicht angeschlossen)`, id: n.k.id })
@@ -61,6 +71,11 @@ export function analysiere(p: Projekt): Analyse {
     const e = knoten.get(q)
     if (!e) {
       meldungen.push({ stufe: 'fehler', text: `${n.bmk}: Quelle "${q}" existiert nicht`, id: n.k.id })
+      wurzeln.push(n)
+      continue
+    }
+    if (e.def.potential) {
+      meldungen.push({ stufe: 'fehler', text: `${n.bmk}: ${e.bmk} ist eine ${e.def.label} und kann keine Quelle sein`, id: n.k.id })
       wurzeln.push(n)
       continue
     }
@@ -87,7 +102,7 @@ export function analysiere(p: Projekt): Analyse {
   }
   wurzeln.forEach((w) => besuche(w, 0))
   for (const n of knoten.values()) {
-    if (!erreicht.has(n)) {
+    if (!erreicht.has(n) && !n.def.potential) {
       meldungen.push({ stufe: 'fehler', text: `${n.bmk} ist Teil eines Kreises (Quelle zeigt im Kreis)`, id: n.k.id })
       // Kreis aufbrechen
       if (n.eltern) n.eltern.kinder = n.eltern.kinder.filter((c) => c !== n)
@@ -100,6 +115,14 @@ export function analysiere(p: Projekt): Analyse {
   for (const d of p.datenverbindungen ?? []) {
     for (const id of [d.von, d.nach]) if (!knoten.has(id)) meldungen.push({ stufe: 'warnung', text: `Datenverbindung ${d.von} → ${d.nach}: "${id}" existiert nicht` })
     if (d.von === d.nach) meldungen.push({ stufe: 'warnung', text: `Datenverbindung ${d.von} zeigt auf sich selbst`, id: d.von })
+  }
+
+  for (const d of p.potentialausgleich ?? []) {
+    const a = knoten.get(d.von), b = knoten.get(d.nach)
+    for (const [id, n] of [[d.von, a], [d.nach, b]] as const) if (!n) meldungen.push({ stufe: 'warnung', text: `Potentialausgleich ${d.von} – ${d.nach}: "${id}" existiert nicht` })
+    if (d.von === d.nach) meldungen.push({ stufe: 'warnung', text: `Potentialausgleich ${d.von} zeigt auf sich selbst`, id: d.von })
+    else if (a && b && (!a.def.pa || !b.def.pa)) for (const n of [a, b].filter((x) => !x.def.pa)) meldungen.push({ stufe: 'warnung', text: `Potentialausgleich ${d.von} – ${d.nach}: ${n.def.label} ${n.bmk} ist dafür nicht vorgesehen`, id: n.k.id })
+    else if (a && b && !a.def.potential && !b.def.potential) meldungen.push({ stufe: 'info', text: `Potentialausgleich ${a.bmk} – ${b.bmk} ohne Potentialausgleichsschiene`, id: d.von })
   }
 
   const hak = wurzeln.filter((w) => w.def.wurzel)
@@ -155,7 +178,7 @@ export function analysiere(p: Projekt): Analyse {
   if (Math.max(...pl) - Math.min(...pl) > 4.6) // 20 A Schieflast-Grenze ≈ 4,6 kVA
     meldungen.push({ stufe: 'warnung', text: `Schieflast > 4,6 kVA: L1 ${pl[0].toFixed(1)} / L2 ${pl[1].toFixed(1)} / L3 ${pl[2].toFixed(1)} kW (einphasige Verbraucher)` })
 
-  return { wurzeln, knoten, meldungen, phasenlast }
+  return { wurzeln, potential, knoten, meldungen, phasenlast }
 }
 
 /** Nächste freie ID mit gegebenem Präfix, z.B. F1, F2 ... */

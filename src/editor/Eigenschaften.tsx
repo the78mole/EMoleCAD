@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import { typDef } from '../model/library'
 import type { Komponente, ParamWert, Projekt } from '../model/types'
-import { datenArtSetzen, datenTrennen, datenVerbinden } from '../model/ops'
+import { datenArtSetzen, datenTrennen, datenVerbinden, paQuerschnittSetzen, paTrennen, paVerbinden } from '../model/ops'
 
 interface Props {
   projekt: Projekt
@@ -74,7 +74,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
       <label>Bezeichnung
         <input value={k.name ?? ''} placeholder={def.label} onChange={(e) => setze({ name: e.target.value || undefined })} />
       </label>
-      {!def.wurzel && (
+      {!def.wurzel && !def.potential && (
         <label>Quelle (vorgeschaltet)
           <select value={k.quelle ?? ''} onChange={(e) => setze({ quelle: e.target.value || undefined })}>
             <option value="">– nicht angeschlossen –</option>
@@ -82,7 +82,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
           </select>
         </label>
       )}
-      {!def.dc && (
+      {!def.dc && !def.potential && (
         <div className="reihe">
           <label>Polzahl
             <select value={k.pole ?? ''} disabled={!def.poleWaehlbar} onChange={(e) => setze({ pole: e.target.value ? (Number(e.target.value) as 1 | 3) : undefined })}>
@@ -137,7 +137,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
         <label>Hersteller<input value={k.produkt?.hersteller ?? ''} placeholder="z. B. Hager" onChange={(e) => setzeProdukt('hersteller', e.target.value)} /></label>
         <label>Artikelnummer<input value={k.produkt?.artikel ?? ''} placeholder="z. B. MBN116" onChange={(e) => setzeProdukt('artikel', e.target.value)} /></label>
       </div>
-      {!def.wurzel && (
+      {!def.wurzel && !def.potential && (
         <>
           <div className="eig-abschnitt">Zuleitung</div>
           <div className="reihe">
@@ -164,6 +164,27 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
             <select value="" onChange={(e) => e.target.value && onProjekt(datenVerbinden(projekt, id, e.target.value))}>
               <option value="">– Gerät wählen –</option>
               {projekt.komponenten.filter((x) => x.id !== id && typDef(x.typ).daten).map((x) => <option key={x.id} value={x.id}>{x.id}{x.name ? ` – ${x.name}` : ''}</option>)}
+            </select>
+          </label>
+        </>
+      )}
+      {def.pa && (
+        <>
+          <div className="eig-abschnitt">Potentialausgleich</div>
+          {(projekt.potentialausgleich ?? []).filter((d) => d.von === id || d.nach === id).map((d) => {
+            const anderer = d.von === id ? d.nach : d.von
+            return (
+              <div key={`pa-${d.von}-${d.nach}`} className="reihe daten-zeile">
+                <span className="daten-ziel">⏚ {anderer}</span>
+                <input value={d.querschnitt ?? ''} placeholder="Querschnitt mm²" onChange={(e) => onProjekt(paQuerschnittSetzen(projekt, d.von, d.nach, e.target.value))} />
+                <button className="icon-btn" title="Potentialausgleich entfernen" onClick={() => onProjekt(paTrennen(projekt, d.von, d.nach))}>×</button>
+              </div>
+            )
+          })}
+          <label>Verbinden mit
+            <select value="" onChange={(e) => e.target.value && onProjekt(paVerbinden(projekt, id, e.target.value))}>
+              <option value="">– Gerät wählen –</option>
+              {projekt.komponenten.filter((x) => x.id !== id && typDef(x.typ).pa && !(projekt.potentialausgleich ?? []).some((d) => (d.von === id && d.nach === x.id) || (d.nach === id && d.von === x.id))).map((x) => <option key={x.id} value={x.id}>{x.id}{x.name ? ` – ${x.name}` : ''}</option>)}
             </select>
           </label>
         </>

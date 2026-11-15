@@ -6,7 +6,7 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import { typDef } from '../model/library'
-import { autoLayout, neuNummerieren, datenTrennen, datenVerbinden, entfernen, hinzufuegen, istVorfahr, setzeQuelle } from '../model/ops'
+import { autoLayout, neuNummerieren, datenTrennen, datenVerbinden, entfernen, hinzufuegen, istVorfahr, paTrennen, paVerbinden, setzeQuelle } from '../model/ops'
 import type { Projekt } from '../model/types'
 import { Bibliothek } from './Bibliothek'
 import { Eigenschaften } from './Eigenschaften'
@@ -98,6 +98,20 @@ function Innen({ projekt, analyse, onChange }: Props) {
               className: 'kante-daten',
             })),
         )
+        .concat(
+          (projekt.potentialausgleich ?? [])
+            .filter((d) => projekt.komponenten.some((k) => k.id === d.von) && projekt.komponenten.some((k) => k.id === d.nach))
+            .map((d): Edge => ({
+              id: `pa:${d.von}->${d.nach}`,
+              source: d.von,
+              target: d.nach,
+              sourceHandle: typDef(projekt.komponenten.find((k) => k.id === d.von)!.typ).pa ? 'pa-out' : undefined,
+              targetHandle: typDef(projekt.komponenten.find((k) => k.id === d.nach)!.typ).pa ? 'pa-in' : undefined,
+              type: 'smoothstep',
+              label: d.querschnitt ? `${d.querschnitt} mm²` : undefined,
+              className: 'kante-pa',
+            })),
+        )
   }, [projekt, analyse, autoPos])
 
   // Ref, damit Callbacks immer den aktuellen Stand sehen
@@ -107,7 +121,9 @@ function Innen({ projekt, analyse, onChange }: Props) {
   const onNodesChange = useCallback((changes: NodeChange<KomponentenNodeTyp>[]) => {
     const loeschen = changes.filter((c) => c.type === 'remove').map((c) => c.id)
     if (loeschen.length) {
-      onChange(entfernen(pRef.current, loeschen))
+      // sofort übernehmen, damit das gleichzeitige Entfernen der Kanten auf dem neuen Stand aufsetzt
+      pRef.current = entfernen(pRef.current, loeschen)
+      onChange(pRef.current)
       setAuswahl(null)
       return
     }
@@ -137,6 +153,9 @@ function Innen({ projekt, analyse, onChange }: Props) {
       if (c.id.startsWith('daten:')) {
         const [von, nach] = c.id.slice(6).split('->')
         p = datenTrennen(p, von, nach)
+      } else if (c.id.startsWith('pa:')) {
+        const [von, nach] = c.id.slice(3).split('->')
+        p = paTrennen(p, von, nach)
       } else p = setzeQuelle(p, c.id.split('->')[1], undefined)
     }
     if (p !== pRef.current) onChange(p)
@@ -145,6 +164,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
   const isValidConnection: IsValidConnection = useCallback((c) => {
     if (!c.source || !c.target || c.source === c.target) return false
     if (c.sourceHandle === 'daten-out' || c.targetHandle === 'daten-in') return c.sourceHandle === 'daten-out' && c.targetHandle === 'daten-in'
+    if (c.sourceHandle === 'pa-out' || c.targetHandle === 'pa-in') return c.sourceHandle === 'pa-out' && c.targetHandle === 'pa-in'
     const ziel = pRef.current.komponenten.find((k) => k.id === c.target)
     if (!ziel || typDef(ziel.typ).wurzel) return false
     return !istVorfahr(pRef.current, c.target, c.source)
@@ -152,6 +172,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
 
   const onConnect = useCallback((c: Connection) => {
     if (c.sourceHandle === 'daten-out') onChange(datenVerbinden(pRef.current, c.source, c.target))
+    else if (c.sourceHandle === 'pa-out') onChange(paVerbinden(pRef.current, c.source, c.target))
     else onChange(setzeQuelle(pRef.current, c.target, c.source))
   }, [onChange])
 
@@ -171,7 +192,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
     const p = pRef.current
     // Neue Komponente automatisch an die Auswahl hängen, wenn das passt
     const sel = auswahl ? p.komponenten.find((k) => k.id === auswahl) : undefined
-    const quelle = sel && typDef(sel.typ).kinder && !typDef(typ).wurzel ? sel.id : undefined
+    const quelle = sel && typDef(sel.typ).kinder && !typDef(typ).wurzel && !typDef(typ).potential ? sel.id : undefined
     let position = pos
     if (!position) {
       const basis = sel ? (p.editor?.[sel.id] ?? autoLayout(p)[sel.id]) : undefined

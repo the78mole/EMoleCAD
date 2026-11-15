@@ -1,5 +1,5 @@
 import YAML from 'yaml'
-import type { Datenverbindung, Komponente, Projekt, ParamWert } from './types'
+import type { Datenverbindung, Komponente, PaVerbindung, Projekt, ParamWert } from './types'
 
 export class YamlFehler extends Error {
   zeile?: number
@@ -50,6 +50,15 @@ export function parseYaml(text: string): Projekt {
       if (d.art) v.art = String(d.art)
       return v
     })
+  }
+  if (roh.potentialausgleich !== undefined && roh.potentialausgleich !== null) {
+    if (!Array.isArray(roh.potentialausgleich)) throw new YamlFehler('"potentialausgleich" muss eine Liste sein')
+    p.potentialausgleich = roh.potentialausgleich.map((d, i): PaVerbindung => {
+      if (!istObjekt(d) || !d.von || !d.nach) throw new YamlFehler(`Potentialausgleich #${i + 1}: "von" und "nach" sind nötig`)
+      const v: PaVerbindung = { von: String(d.von), nach: String(d.nach) }
+      if (d.querschnitt !== undefined && d.querschnitt !== null && d.querschnitt !== '') v.querschnitt = String(d.querschnitt)
+      return v
+    }).filter((v, i, alle) => alle.findIndex((w) => (w.von === v.von && w.nach === v.nach) || (w.von === v.nach && w.nach === v.von)) === i) // ungerichtet, Doppelte entfernen
   }
   if (roh.editor !== undefined && istObjekt(roh.editor)) {
     p.editor = {}
@@ -132,13 +141,14 @@ export function toYaml(p: Projekt): string {
     }),
   }
   if (p.datenverbindungen?.length) roh.datenverbindungen = p.datenverbindungen.map((d) => (d.art ? { von: d.von, nach: d.nach, art: d.art } : { von: d.von, nach: d.nach }))
+  if (p.potentialausgleich?.length) roh.potentialausgleich = p.potentialausgleich.map((d) => (d.querschnitt ? { von: d.von, nach: d.nach, querschnitt: d.querschnitt } : { von: d.von, nach: d.nach }))
   const doc = new YAML.Document(roh)
   // kompakte Darstellung für Parameter und Kabel
   YAML.visit(doc, {
     Pair(_, pair) {
       const key = (pair.key as YAML.Scalar)?.value
       if ((key === 'params' || key === 'kabel' || key === 'produkt') && YAML.isMap(pair.value)) pair.value.flow = true
-      if (key === 'datenverbindungen' && YAML.isSeq(pair.value)) pair.value.items.forEach((it) => { if (YAML.isMap(it)) it.flow = true })
+      if ((key === 'datenverbindungen' || key === 'potentialausgleich') && YAML.isSeq(pair.value)) pair.value.items.forEach((it) => { if (YAML.isMap(it)) it.flow = true })
     },
   })
   let out = doc.toString({ lineWidth: 0 })

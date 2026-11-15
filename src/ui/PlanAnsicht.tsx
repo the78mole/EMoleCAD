@@ -34,7 +34,7 @@ function schreibe(key: string, v: unknown) {
 export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: DarstellungsOptionen, modi: Modus[]): Blatt[] {
   const v = VORLAGEN.find((x) => x.id === d.vorlage) ?? VORLAGEN[0]
   return modi.map((m, i) =>
-    erzeugeBlatt(zeichnePlan(analyse, { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen }), projekt, m, v, i + 1, modi.length, d.farbig),
+    erzeugeBlatt(zeichnePlan(analyse, { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }), projekt, m, v, i + 1, modi.length, d.farbig),
   )
 }
 
@@ -87,7 +87,7 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
             <input type="checkbox" checked={tabelle} onChange={(e) => { setTabelle(e.target.checked); schreibe('molecad.tabelle', e.target.checked) }} /> Tabelle
           </label>
         )}
-        <label className="check" title="Leiterfarben im allpoligen Plan">
+        <label className="check" title="Leiterfarben im allpoligen Plan; im einpoligen Plan N/PE-Marken und Potentialausgleich grün">
           <input type="checkbox" checked={farbig} onChange={(e) => { setFarbig(e.target.checked); schreibe('molecad.farbig', e.target.checked) }} /> Farbig
         </label>
         <div className="segment klein">
