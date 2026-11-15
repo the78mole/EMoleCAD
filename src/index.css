@@ -129,3 +129,22 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .daten-zeile { align-items: center; }
 .daten-zeile .daten-ziel { flex: none; width: 52px; font-size: 12px; font-weight: 600; }
 .daten-zeile input { flex: 1; }
+
+/* Datei-Menü */
+.datei-name { font-size: 13px; color: #c9d1de; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.datei-name b { color: #f5b942; }
+.datei-status { font-size: 12px; color: #9fe0a8; }
+.datei-status.fehler { color: #ff9b9b; }
+.datei-menue { position: relative; }
+.datei-menue .menue { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; min-width: 250px; background: #fff; color: #1d2330; border: 1px solid var(--rand); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
+.datei-menue .menue button { background: none !important; border: none; color: #1d2330; text-align: left; padding: 7px 10px; border-radius: 5px; display: flex; justify-content: space-between; gap: 16px; }
+.datei-menue .menue button:hover { background: #eef3fb !important; }
+.datei-menue .menue button.zuletzt { font-size: 13px; color: #3b4558; padding-left: 18px; }
+.datei-menue kbd { font: inherit; font-size: 11px; color: #8a93a3; }
+.datei-menue hr { border: none; border-top: 1px solid var(--rand); margin: 4px 0; }
+.menue-titel { font-size: 11px; color: #8a93a3; padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: .04em; }
+.menue-hinweis { font-size: 11px; color: #6b7383; padding: 6px 10px; max-width: 250px; line-height: 1.4; }
+.kopf button.primaer-kopf { background: var(--akzent); border-color: var(--akzent); }
+.kopf button.primaer-kopf:disabled { background: #2b3344; border-color: #3b4558; }
+.bus-label { position: absolute; pointer-events: none; font-size: 10px; line-height: 1; color: #475569; background: rgba(248,249,251,.9); padding: 1px 3px; border-radius: 3px; white-space: nowrap; }
+.bus-punkt { fill: #334155; }

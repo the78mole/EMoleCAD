@@ -11,9 +11,11 @@ import type { Projekt } from '../model/types'
 import { Bibliothek } from './Bibliothek'
 import { Eigenschaften } from './Eigenschaften'
 import { KomponentenNode, type KomponentenNodeTyp } from './KomponentenNode'
+import { BusKante } from './BusKante'
 import { aktualisieren } from '../model/ops'
 
 const nodeTypes = { komponente: KomponentenNode }
+const edgeTypes = { bus: BusKante }
 
 interface Props {
   projekt: Projekt
@@ -41,20 +43,29 @@ function Innen({ projekt, analyse, onChange }: Props) {
   const [nodes, setNodes] = useState<KomponentenNodeTyp[]>(sollNodes)
   useEffect(() => setNodes(sollNodes), [sollNodes])
 
-  const edges = useMemo<Edge[]>(
-    () =>
-      projekt.komponenten
+  const edges = useMemo<Edge[]>(() => {
+    const posVon = (id: string) => (projekt.editor?.[id] ?? autoPos[id] ?? { x: 0, y: 0 }).x
+    const kinderVon = new Map<string, string[]>()
+    for (const k of projekt.komponenten) if (k.quelle) kinderVon.set(k.quelle, [...(kinderVon.get(k.quelle) ?? []), k.id])
+    return projekt.komponenten
         .filter((k) => k.quelle && projekt.komponenten.some((q) => q.id === k.quelle))
         .map((k) => {
           const kn = analyse.knoten.get(k.id)
+          const geschwister = kinderVon.get(k.quelle!) ?? []
+          const xs = [posVon(k.quelle!), ...geschwister.map(posVon)]
+          const x = posVon(k.id)
           const e: Edge = {
             id: `${k.quelle}->${k.id}`,
             source: k.quelle!,
             target: k.id,
             sourceHandle: 'strom-out',
             targetHandle: 'strom-in',
-            type: 'smoothstep',
-            label: kn ? (kn.dc ? 'DC' : kn.pole === 3 ? '3/N/PE' : `${kn.phase}/N/PE`) : undefined,
+            type: 'bus',
+            data: {
+              label: kn ? (kn.dc ? 'DC' : kn.pole === 3 ? '3/N/PE' : `${kn.phase}/N/PE`) : undefined,
+              geschwister: geschwister.length,
+              ende: x <= Math.min(...xs) || x >= Math.max(...xs),
+            },
             className: kn?.dc ? 'kante-dc' : kn?.pole === 3 ? 'kante-3' : 'kante-1',
           }
           return e
@@ -72,9 +83,8 @@ function Innen({ projekt, analyse, onChange }: Props) {
               label: d.art,
               className: 'kante-daten',
             })),
-        ),
-    [projekt, analyse],
-  )
+        )
+  }, [projekt, analyse, autoPos])
 
   // Ref, damit Callbacks immer den aktuellen Stand sehen
   const pRef = useRef(projekt)
@@ -176,6 +186,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}

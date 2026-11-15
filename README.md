@@ -24,7 +24,17 @@ Ohne Installation: `molecad.html` direkt im Browser öffnen.
 - **Neu nummerieren** (im grafischen Editor) vergibt die Kennzeichen je Kennbuchstabe (F1, F2, …) von links nach rechts in Baumreihenfolge, so wie die Bausteine im Editor angeordnet sind. Quellen und Datenverbindungen werden mit umbenannt.
 - Die Reihenfolge der Spalten im Plan folgt der Anordnung im grafischen Editor (links nach rechts); ohne Editorpositionen gilt die Reihenfolge im YAML.
 - Editor und Plan lassen sich über „Einklappen“ zur Seite klappen; der andere Bereich bekommt dann die volle Breite. Die schmale Leiste am Rand blendet ihn wieder ein.
-- Der Stand wird automatisch im Browser (localStorage) gespeichert; „YAML speichern“/„Öffnen…“ für Dateien.
+- Im grafischen Editor laufen alle Abgänge einer Komponente über einen gemeinsamen Bus; die Leiterangabe (z. B. `L1/N/PE`) steht direkt über der angeschlossenen Komponente.
+
+## Speichern
+
+Menü **Datei** (oben rechts) und Knopf **Speichern**:
+
+- **Öffnen…** (`Strg+O`), **Speichern** (`Strg+S`), **Speichern unter…** (`Strg+Umschalt+S`), **Zuletzt verwendet**.
+- In Chrome, Edge und Opera wird wie bei draw.io direkt in die geöffnete Datei zurückgeschrieben (File System Access API). Die Datei bleibt auch nach einem Neuladen verbunden; der Browser fragt beim ersten Speichern ggf. noch einmal nach der Berechtigung.
+- In Firefox und Safari gibt es kein direktes Zurückschreiben: Speichern lädt die YAML-Datei herunter.
+- Ungespeicherte Änderungen werden mit ● neben dem Dateinamen markiert, beim Schließen des Tabs gibt es eine Warnung. Zusätzlich liegt immer ein Entwurf im Browser (localStorage), sodass nach einem Absturz nichts verloren geht.
+- Speicherorte sind austauschbar (`src/speicher/`): jeder Ort implementiert `oeffnen`, `laden`, `speichern`, `speichernUnter`. Lokal ist umgesetzt; GitHub, Nextcloud (WebDAV) und Google Drive werden dort als weitere Speicherorte angehängt.
 
 ## YAML-Format
 
@@ -122,7 +132,8 @@ Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, SMGW, Steue
 src/model/      Datenmodell, YAML-Ein-/Ausgabe, Analyse (Baum, Leiter, Prüfungen), Bibliothek
 src/schematic/  SVG-Generator einpolig/allpolig (render.ts) und Blattvorlagen mit Schriftfeld (blatt.ts)
 src/editor/     Node-Editor (React Flow): Bibliothek, Bausteine, Eigenschaften
-src/ui/         YAML-Editor (CodeMirror), Planansicht, PDF/SVG-Export (jsPDF + svg2pdf.js)
+src/speicher/   Speicherorte (lokal; Schnittstelle für GitHub, Nextcloud, Google Drive)
+src/ui/         Datei-Menü, YAML-Editor (CodeMirror), Planansicht, PDF/SVG-Export (jsPDF + svg2pdf.js)
 ```
 
 Ein gemeinsames Datenmodell ist die einzige Wahrheit; YAML und Node-Editor sind zwei Ansichten darauf. Die Prüfung meldet u. a. fehlende Quellen, Kreise, doppelte IDs, Phasenkonflikte und Schieflast > 4,6 kVA.
