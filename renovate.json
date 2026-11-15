@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "description": [
+    "Grüne Minor-/Patch-Gruppen und die Lockfile-Wartung mergt Renovate selbst.",
+    "platformAutomerge ist aus, damit Renovate vor dem Merge alle Checks selbst prüft.",
+    "Major-Updates brauchen eine Entscheidung und werden nie automatisch gemergt.",
+    "Actions laufen per Commit-SHA (OpenSSF Scorecard, Pinned-Dependencies); Renovate hält sie aktuell.",
+    "Bekannte Schwachstellen bekommen sofort eigene PRs mit Label security, ohne automatischen Merge."
+  ],
+  "platformAutomerge": false,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": { "labels": ["security"], "automerge": false },
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "📦 Dependency Dashboard",
+  "labels": ["dependencies"],
+  "timezone": "Europe/Berlin",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"],
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "description": "npm-Pakete: Minor und Patch in einem PR",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm-Abhängigkeiten (minor/patch)",
+      "groupSlug": "npm-minor-patch",
+      "automerge": true
+    },
+    {
+      "description": "GitHub Actions: Minor und Patch in einem PR",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "GitHub Actions (minor/patch)",
+      "groupSlug": "actions-minor-patch",
+      "automerge": true
+    },
+    {
+      "description": "Node-Laufzeit (.nvmrc) nur bewusst wechseln",
+      "matchDepNames": ["node"],
+      "automerge": false
+    },
+    {
+      "description": "Major-Updates bleiben einzelne PRs und werden markiert",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major"],
+      "automerge": false
+    }
+  ]
+}

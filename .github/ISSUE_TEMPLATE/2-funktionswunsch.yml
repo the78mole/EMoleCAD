@@ -1,0 +1,29 @@
+name: Funktion vorschlagen
+description: Idee für eine neue Funktion, einen Baustein oder ein Symbol.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem soll gelöst werden?
+      description: Beschreibe den Bedarf, nicht nur die Lösung.
+    validations:
+      required: true
+  - type: textarea
+    id: vorschlag
+    attributes:
+      label: Vorgeschlagene Lösung
+      description: Bei neuen Bausteinen gern mit Norm-Bezug (Kennbuchstaben, Schaltzeichen).
+    validations:
+      required: true
+  - type: textarea
+    id: alternativen
+    attributes:
+      label: Betrachtete Alternativen
+  - type: checkboxes
+    id: beitrag
+    attributes:
+      label: Mitarbeit
+      options:
+        - label: Ich würde einen Pull Request beisteuern (siehe CONTRIBUTING.md).

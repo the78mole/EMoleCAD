@@ -1,4 +1,15 @@
-# MoleCAD
+# EMoleCAD
+
+[![CI](https://github.com/the78mole/EMoleCAD/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/the78mole/EMoleCAD/actions/workflows/ci.yml)
+[![Pages](https://github.com/the78mole/EMoleCAD/actions/workflows/pages.yml/badge.svg)](https://the78mole.github.io/EMoleCAD/)
+[![CodeQL](https://github.com/the78mole/EMoleCAD/actions/workflows/codeql.yml/badge.svg)](https://github.com/the78mole/EMoleCAD/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/the78mole/EMoleCAD/badge)](https://scorecard.dev/viewer/?uri=github.com/the78mole/EMoleCAD)
+[![Security Policy](https://img.shields.io/badge/Security-Policy-brightgreen?logo=github)](SECURITY.md)
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue)](LICENSE)
+
+**Direkt im Browser starten: <https://the78mole.github.io/EMoleCAD/>** · Offline-Version als
+Einzeldatei: [emolecad.html](https://the78mole.github.io/EMoleCAD/emolecad.html) (herunterladen und
+in Chrome/Edge öffnen, dann wird direkt in die geöffnete Datei gespeichert).
 
 Tool zur Erstellung von Elektro-Übersichtsplänen in einpoliger und allpoliger Darstellung.
 
@@ -140,3 +151,12 @@ src/ui/         Datei-Menü, YAML-Editor (CodeMirror), Planansicht, PDF/SVG-Expo
 ```
 
 Ein gemeinsames Datenmodell ist die einzige Wahrheit; YAML und Node-Editor sind zwei Ansichten darauf. Die Prüfung meldet u. a. fehlende Quellen, Kreise, doppelte IDs, Phasenkonflikte und Schieflast > 4,6 kVA.
+
+## Lizenz und Mitwirken
+
+EMoleCAD steht unter der [MIT-Lizenz](LICENSE). Beiträge sind willkommen, siehe
+[CONTRIBUTING.md](CONTRIBUTING.md) und [Verhaltenskodex](CODE_OF_CONDUCT.md). Sicherheitslücken
+bitte vertraulich melden, siehe [SECURITY.md](SECURITY.md).
+
+EMoleCAD ist ein Hilfsmittel zum Zeichnen. Die erzeugten Pläne ersetzen keine Planung und Prüfung
+durch eine Elektrofachkraft und keine Abstimmung mit dem Netzbetreiber.

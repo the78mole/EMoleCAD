@@ -1,0 +1,46 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie beschrieben.
+title: "fix: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für die Meldung. Sicherheitslücken bitte **nicht** hier, sondern vertraulich
+        melden (siehe [SECURITY.md](https://github.com/the78mole/EMoleCAD/blob/main/SECURITY.md)).
+  - type: dropdown
+    id: bereich
+    attributes:
+      label: Betroffener Bereich
+      multiple: true
+      options:
+        - Grafischer Editor
+        - YAML-Editor
+        - Schaltplan einpolig
+        - Schaltplan allpolig
+        - Stromkreistabelle / Schriftfeld
+        - PDF-/SVG-Export
+        - Speichern / Öffnen
+        - anderes
+    validations:
+      required: true
+  - type: textarea
+    id: beschreibung
+    attributes:
+      label: Was ist passiert?
+      description: Was hast Du getan, was hast Du erwartet, was ist stattdessen passiert?
+    validations:
+      required: true
+  - type: textarea
+    id: yaml
+    attributes:
+      label: Projekt-YAML (gekürzt)
+      description: Ein minimales Projekt, mit dem sich der Fehler zeigen lässt. Keine Kundendaten.
+      render: yaml
+  - type: input
+    id: umgebung
+    attributes:
+      label: Browser und Variante
+      placeholder: z. B. Chrome 140, Pages-Version / emolecad.html
+    validations:
+      required: true

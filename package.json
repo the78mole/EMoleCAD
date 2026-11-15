@@ -1,7 +1,14 @@
 {
-  "name": "molecad",
+  "name": "emolecad",
   "private": true,
   "version": "0.1.0",
+  "description": "Elektro-Übersichtspläne (einpolig/allpolig) aus YAML oder grafischem Editor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the78mole/EMoleCAD.git"
+  },
+  "homepage": "https://the78mole.github.io/EMoleCAD/",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,5 +40,8 @@
     "vite": "^8.3.6",
     "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

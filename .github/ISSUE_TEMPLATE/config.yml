@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sicherheitslücke melden
+    url: https://github.com/the78mole/EMoleCAD/security/advisories/new
+    about: Bitte vertraulich melden, nicht als Issue (siehe SECURITY.md).
+  - name: EMoleCAD im Browser
+    url: https://the78mole.github.io/EMoleCAD/
+    about: Die aktuelle Version direkt ausprobieren.
