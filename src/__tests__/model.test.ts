@@ -97,6 +97,17 @@ describe('Neu nummerieren', () => {
     const ids = n.komponenten.filter((k) => k.typ === 'rcd' || k.quelle === n.komponenten.find((r) => r.typ === 'rcd')?.id).map((k) => k.id)
     expect(ids.length).toBeGreaterThan(1)
   })
+  it('nummeriert zeilenweise von oben nach unten, dann von links nach rechts', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    const n = neuNummerieren({ ...p, editor: undefined })
+    const typ = (id: string) => n.komponenten.find((k) => k.id === id)!.typ
+    expect(typ('F1')).toBe('spd')
+    // alle Geräte der oberen Verteilerreihe (RCDs, LS direkt an der HLAK) vor den LS darunter
+    const nr = (k: { id: string }) => Number(k.id.slice(1))
+    const oben = n.komponenten.filter((k) => k.quelle === 'X2').map(nr)
+    const unten = n.komponenten.filter((k) => k.typ === 'ls' && k.quelle !== 'X2' && k.quelle !== 'W1').map(nr)
+    expect(Math.max(...oben)).toBeLessThan(Math.min(...unten))
+  })
 })
 
 describe('Plan', () => {

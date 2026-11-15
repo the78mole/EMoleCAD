@@ -91,18 +91,27 @@ export function istVorfahr(p: Projekt, vorfahr: string, id: string): boolean {
  *  (wie im grafischen Editor angeordnet), Einspeisung zuerst. */
 export function neuNummerieren(p: Projekt): Projekt {
   const editor = { ...autoLayout(p), ...(p.editor ?? {}) }
-  const a = analysiere({ ...p, editor })
+  // Lesereihenfolge: Zeile für Zeile von oben nach unten, innerhalb der Zeile von links nach rechts.
+  // Bausteine, deren Oberkante weniger als ZEILE px auseinander liegt, gelten als eine Zeile.
+  const ZEILE = 60
+  const pos = (id: string) => editor[id] ?? { x: 0, y: 0 }
+  const nachY = [...p.komponenten].sort((x, y) => pos(x.id).y - pos(y.id).y)
+  const zeilen: Komponente[][] = []
+  for (const k of nachY) {
+    const z = zeilen[zeilen.length - 1]
+    if (z && pos(k.id).y - pos(z[0].id).y < ZEILE) z.push(k)
+    else zeilen.push([k])
+  }
   const neu = new Map<string, string>()
   const zaehler: Record<string, number> = {}
-  const besuche = (n: (typeof a.wurzeln)[number]) => {
-    if (neu.has(n.k.id)) return
-    const pre = n.def.bmk
-    zaehler[pre] = (zaehler[pre] ?? 0) + 1
-    neu.set(n.k.id, `${pre}${zaehler[pre]}`)
-    n.kinder.forEach(besuche)
+  for (const z of zeilen) {
+    z.sort((x, y) => pos(x.id).x - pos(y.id).x)
+    for (const k of z) {
+      const pre = typDef(k.typ).bmk
+      zaehler[pre] = (zaehler[pre] ?? 0) + 1
+      neu.set(k.id, `${pre}${zaehler[pre]}`)
+    }
   }
-  a.wurzeln.forEach(besuche)
-  p.komponenten.forEach((k) => { if (!neu.has(k.id)) { const pre = typDef(k.typ).bmk; zaehler[pre] = (zaehler[pre] ?? 0) + 1; neu.set(k.id, `${pre}${zaehler[pre]}`) } })
   const m = (id: string) => neu.get(id) ?? id
   return {
     ...p,
@@ -112,7 +121,6 @@ export function neuNummerieren(p: Projekt): Projekt {
   }
 }
 
-/** Baum-Layout für den Node-Editor */
 /** Typen der Einspeisekette (HAK → … → Verteilung); im Editor immer ganz links. */
 const KETTE = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung', 'sammelschiene']
 
