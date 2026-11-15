@@ -72,6 +72,11 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const farbe = (l: LeiterName) => (allp && o.farbig ? LEITERFARBE[l] : '#000')
 
   const alle = [...a.knoten.values()].filter((n) => !n.def.potential)
+  if (!alle.length && a.potential.length) {
+    // nur Potentialausgleichsschienen vorhanden
+    const unten = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 })
+    return { inhalt: svg.toString(), breite: 140, hoehe: unten + 4 }
+  }
   if (!alle.length) {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
     return { inhalt: svg.toString(), breite: 120, hoehe: 40 }
@@ -218,7 +223,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     })
   }
 
-  const paIds = new Set((o.pa ?? []).flatMap((d) => [d.von, d.nach]))
+  // nur gültige Verbindungen zählen (beide Enden vorhanden), sonst bliebe ein SPD ohne Erdung
+  const paIds = new Set((o.pa ?? []).filter((d) => d.von !== d.nach && a.knoten.has(d.von) && a.knoten.has(d.nach)).flatMap((d) => [d.von, d.nach]))
   for (const l of lagen.values()) if (paIds.has(l.n.k.id)) l.pa = true
 
   // --- Komponenten ---
@@ -363,27 +369,30 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
   let unten = 0
 
   // Anschlusspunkt eines Geräts: p = am Gerät, w = Weg dorthin (Punkt, von dem es senkrecht weitergeht)
-  const anschluss = (l: Lage): { p: number[]; x: number } => {
+  const anschluss = (l: Lage): { p: number[]; x: number; pe?: boolean } => {
     const n = l.n
-    if (n.def.symbol === 'spd' && !l.aufwaerts) return { p: [l.x, l.symTop + (allp ? 12.5 : 12)], x: l.x }
+    if (n.def.symbol === 'spd') return l.aufwaerts ? { p: [l.x, l.symTop + (allp ? 1.5 : 2)], x: l.x } : { p: [l.x, l.symTop + (allp ? 12.5 : 12)], x: l.x }
     if (n.def.symbol === 'schiene' && l.busMax !== undefined) {
       const y = l.busY.PE ?? l.busY.L1
-      if (y !== undefined) return { p: [l.busMax, y], x: l.busMax }
+      if (y !== undefined) return { p: [l.busMax, y], x: l.busMax, pe: !allp }
     }
     const xs = n.leiter.map((le) => cx(l, le))
     const rechts = allp ? Math.max(...xs) + (n.def.durchgang ? 3.5 : 6) : l.x + (n.def.durchgang ? 4.5 : 5)
     // rechts am Gerät, unten (Beschriftung steht oben rechts)
     return { p: [rechts, l.symBot - 2], x: rechts + 3 }
   }
-  const leitung = (q: { p: number[]; x: number }, y: number, text?: string) => {
+  const leitung = (q: { p: number[]; x: number; pe?: boolean }, y: number, text?: string) => {
     const [px, py] = q.p
     svg.pfad(`M ${px} ${py} H ${q.x} V ${y}`, stil)
     svg.kreis(px, py, 0.45, { farbe: fa, fuellung: fa, breite: 0.1 })
+    // einpolig steht die Sammelleitung für alle Leiter: Anschluss am PE kennzeichnen
+    if (q.pe) svg.text(px + 0.9, py + (y > py ? 2.6 : -1), 'PE', { groesse: 1.6, farbe: fa })
     if (text) svg.text(q.x + 0.8, (Math.max(py, y - 8) + y) / 2, text, { groesse: 1.6, farbe: fa })
   }
   const querschnitt = (d: PaVerbindung) => (d.querschnitt ? `${d.querschnitt}${/mm/.test(d.querschnitt) ? '' : ' mm²'}` : undefined)
 
   let yFrei = frei.y
+  const schienen = new Map<string, { x0: number; x1: number; y: number }>()
   for (const pas of a.potential) {
     const id = pas.k.id
     const verb = liste.filter((d) => d.von === id || d.nach === id)
@@ -424,7 +433,19 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
       erde(svg, ex, y + 4, fa)
       svg.text(tx, y + 5, erder + (p.querschnitt ? `, ${p.querschnitt} mm²` : ''), { groesse: 1.6, farbe: '#444' })
     }
+    schienen.set(id, { x0, x1, y })
     unten = Math.max(unten, y + 7)
+  }
+  // Verbindungen zwischen zwei Schienen: von Schienenende zu Schienenende
+  for (const d of liste) {
+    const sa = schienen.get(d.von), sb = schienen.get(d.nach)
+    if (!sa || !sb || sa === sb) continue
+    const xa = sa.x0 + 2, xb = sb.x0 + 2
+    const yu = Math.max(sa.y, sb.y) + 6
+    svg.pfad(`M ${xa} ${sa.y} V ${yu} H ${xb} V ${sb.y}`, stil)
+    const t = querschnitt(d)
+    if (t) svg.text((xa + xb) / 2, yu - 0.8, t, { groesse: 1.6, farbe: fa, anker: 'middle' })
+    unten = Math.max(unten, yu + 2)
   }
 
   // Potentialausgleich direkt zwischen zwei Geräten (ohne PAS)

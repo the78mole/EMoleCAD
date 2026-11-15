@@ -87,7 +87,7 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
             <input type="checkbox" checked={tabelle} onChange={(e) => { setTabelle(e.target.checked); schreibe('molecad.tabelle', e.target.checked) }} /> Tabelle
           </label>
         )}
-        <label className="check" title="Leiterfarben im allpoligen Plan">
+        <label className="check" title="Leiterfarben im allpoligen Plan; im einpoligen Plan N/PE-Marken und Potentialausgleich grün">
           <input type="checkbox" checked={farbig} onChange={(e) => { setFarbig(e.target.checked); schreibe('molecad.farbig', e.target.checked) }} /> Farbig
         </label>
         <div className="segment klein">

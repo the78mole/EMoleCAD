@@ -15,7 +15,7 @@ export type KomponentenNodeTyp = Node<KomponentenNodeData, 'komponente'>
 export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp>) {
   const { k, def, knoten, meldung } = data
   const kurz = def.kurz?.(k.params ?? {}) ?? ''
-  const leiter = knoten ? (knoten.dc ? 'DC' : knoten.pole === 3 ? '3~' : knoten.phase ?? '1~') : ''
+  const leiter = def.potential ? 'PE' : knoten ? (knoten.dc ? 'DC' : knoten.pole === 3 ? '3~' : knoten.phase ?? '1~') : ''
   return (
     <div className={`kn ${selected ? 'sel' : ''} ${meldung ?? ''}`} style={{ ['--farbe' as string]: def.farbe }}>
       {!def.wurzel && !def.potential && <Handle type="target" id="strom-in" position={Position.Top} />}

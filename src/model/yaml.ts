@@ -58,7 +58,7 @@ export function parseYaml(text: string): Projekt {
       const v: PaVerbindung = { von: String(d.von), nach: String(d.nach) }
       if (d.querschnitt !== undefined && d.querschnitt !== null && d.querschnitt !== '') v.querschnitt = String(d.querschnitt)
       return v
-    })
+    }).filter((v, i, alle) => alle.findIndex((w) => (w.von === v.von && w.nach === v.nach) || (w.von === v.nach && w.nach === v.von)) === i) // ungerichtet, Doppelte entfernen
   }
   if (roh.editor !== undefined && istObjekt(roh.editor)) {
     p.editor = {}

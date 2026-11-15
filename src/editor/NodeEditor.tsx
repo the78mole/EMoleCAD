@@ -121,7 +121,9 @@ function Innen({ projekt, analyse, onChange }: Props) {
   const onNodesChange = useCallback((changes: NodeChange<KomponentenNodeTyp>[]) => {
     const loeschen = changes.filter((c) => c.type === 'remove').map((c) => c.id)
     if (loeschen.length) {
-      onChange(entfernen(pRef.current, loeschen))
+      // sofort übernehmen, damit das gleichzeitige Entfernen der Kanten auf dem neuen Stand aufsetzt
+      pRef.current = entfernen(pRef.current, loeschen)
+      onChange(pRef.current)
       setAuswahl(null)
       return
     }
@@ -190,7 +192,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
     const p = pRef.current
     // Neue Komponente automatisch an die Auswahl hängen, wenn das passt
     const sel = auswahl ? p.komponenten.find((k) => k.id === auswahl) : undefined
-    const quelle = sel && typDef(sel.typ).kinder && !typDef(typ).wurzel ? sel.id : undefined
+    const quelle = sel && typDef(sel.typ).kinder && !typDef(typ).wurzel && !typDef(typ).potential ? sel.id : undefined
     let position = pos
     if (!position) {
       const basis = sel ? (p.editor?.[sel.id] ?? autoLayout(p)[sel.id]) : undefined

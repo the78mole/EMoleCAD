@@ -196,9 +196,10 @@ describe('Potentialausgleich', () => {
     expect(p.potentialausgleich).toHaveLength(3)
     p = aktualisieren(p, 'XE1', { ...p.komponenten.find((k) => k.id === 'XE1')!, id: 'XE9' })
     expect(p.potentialausgleich!.every((d) => d.von === 'XE9')).toBe(true)
-    expect(neuNummerieren(p).potentialausgleich!.every((d) => d.von === 'XE1')).toBe(true)
+    const paare = (q: typeof p) => q.potentialausgleich!.map((d) => `${d.von}-${d.nach}`)
+    expect(paare(neuNummerieren(p))).toEqual(['XE1-XD1', 'XE1-WD1', 'XE1-FA1'])
     expect(paVerbinden(p, 'FA1', 'XE9')).toBe(p) // schon vorhanden (Richtung egal)
-    expect(paTrennen(p, 'WD1', 'XE9').potentialausgleich).toHaveLength(2)
+    expect(paare(paTrennen(p, 'WD1', 'XE9'))).toEqual(['XE9-XD1', 'XE9-FA1'])
     expect(entfernen(p, ['XE9']).potentialausgleich).toEqual([])
   })
   it('wird grün gezeichnet, SPD ohne eigenes Erdungssymbol', () => {
@@ -208,6 +209,33 @@ describe('Potentialausgleich', () => {
       expect(plan.inhalt).toContain('-XE1')
       expect(plan.inhalt).toContain('16 mm²')
       expect(plan.inhalt).toContain('#2e9e3e')
+      // drei Anschlusspunkte der Leitungen und nur noch ein Erder (an der PAS, nicht am SPD)
+      expect(plan.inhalt.match(/<circle[^>]*r="0.45" fill="#2e9e3e" stroke="#2e9e3e"/g)?.length).toBe(3)
+      // Erdungssymbol = waagerechte Linie mit 1,2 mm Länge (unterster Strich)
+      const erden = (t: string) => [...t.matchAll(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g)].filter((m) => m[2] === m[4] && Math.abs(+m[3] - +m[1] - 1.2) < 0.01).length
+      const ohne = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz })
+      expect(erden(ohne.inhalt)).toBe(2) // SPD und unverbundene PAS
+      expect(erden(plan.inhalt)).toBe(1) // nur PAS, SPD-Erde entfällt
     }
+  })
+  it('meldet Doppelte, ungeeignete Partner und PAS als Quelle', () => {
+    const p = parseYaml(`komponenten:
+  - { id: XD1, typ: hausanschluss }
+  - { id: XE1, typ: pas }
+  - { id: FC1, typ: ls, quelle: XE1 }
+potentialausgleich:
+  - { von: XE1, nach: XD1 }
+  - { von: XD1, nach: XE1 }
+  - { von: XE1, nach: FC1 }
+`)
+    expect(p.potentialausgleich).toHaveLength(2)
+    const texte = analysiere(p).meldungen.map((m) => m.text).join('\n')
+    expect(texte).toMatch(/FC1.*nicht vorgesehen/)
+    expect(texte).toMatch(/kann keine Quelle sein/)
+    expect(texte).not.toMatch(/Kreis/)
+  })
+  it('zeichnet einen Plan nur mit PAS', () => {
+    const p = parseYaml('komponenten:\n  - { id: XE1, typ: pas }\n')
+    expect(zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz }).inhalt).toContain('-XE1')
   })
 })
