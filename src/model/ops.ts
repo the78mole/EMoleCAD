@@ -125,7 +125,7 @@ export function autoLayout(p: Projekt): Record<string, { x: number; y: number }>
       return x
     }
     const xs = n.kinder.map(setze)
-    const x = (Math.min(...xs) + Math.max(...xs)) / 2
+    const x = xs[0] // linksbündig: Eltern über dem ersten Kind, Aufbau von links nach rechts
     pos[n.k.id] = { x, y: n.tiefe * BY }
     return x
   }

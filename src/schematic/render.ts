@@ -141,8 +141,10 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   }
 
   const platziereSeite = (n: Knoten, x0: number, basis: number, ebene: number): number => {
-    const symBot = basis - ebene * H
-    const l: Lage = { n, x: 0, symTop: symBot - SYM_H, symBot, aus: ausgaenge(n), busY: {}, kette: false, aufwaerts: true }
+    // Überspannungsschutz direkt am Abgriff nach unten hängen (Erde zeigt nach unten)
+    const runter = ebene === 0 && !n.kinder.length && n.def.symbol === 'spd'
+    const symBot = runter ? basis + abzweigAbstand + 2 + SYM_H : basis - ebene * H
+    const l: Lage = { n, x: 0, symTop: symBot - SYM_H, symBot, aus: ausgaenge(n), busY: {}, kette: false, aufwaerts: !runter }
     lagen.set(n, l)
     const eigen = eigeneBreite(n)
     if (!n.kinder.length) {
@@ -257,7 +259,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       const ty = busTop - 1.6
       svg.text(l.x + (allp ? 12 : 4), ty, `${n.bmk}  ${n.k.name ?? kurz}`, { groesse: 2.3, fett: true })
       if (n.k.name && kurz) svg.text(l.x + (allp ? 12 : 4) + 40, ty, kurz, { groesse: 1.9, farbe: '#333' })
-    } else beschriftung(svg, l, allp, cx, hager && o.tabelle !== false)
+    } else beschriftung(svg, l, allp, cx, hager && o.tabelle !== false, (o.daten ?? []).filter((d) => d.von === n.k.id || d.nach === n.k.id).length)
   }
 
   datenLinien(svg, lagen, o, allp, cx)
@@ -282,14 +284,14 @@ function hauptstrang(k: Knoten): Knoten | undefined {
 
 // ---------- Informationsverbindungen ----------
 
-type Seite = 'oben' | 'unten' | 'links' | 'rechts'
+type Seite = 'oben' | 'unten' | 'kette' | 'rechts'
 
 function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx) {
   const liste = o.daten ?? []
   if (!liste.length) return
   const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
   const farbe = allp && !o.farbig ? '#000' : '#8e24aa'
-  const seite = (l: Lage): Seite => (l.kette ? 'links' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
+  const seite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
   const geometrie = (l: Lage) => {
     const xs = l.n.leiter.map((le) => cx(l, le))
     const spann = Math.max(...xs) - Math.min(...xs)
@@ -297,7 +299,10 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     const hb = !allp ? (durch ? 4.5 : 5) : durch ? spann / 2 + 2.5 : Math.max(12, spann + 6) / 2
     const oben = l.symTop + (durch ? 2.5 : allp ? 1.5 : 2)
     const unten = oben + (durch ? 9 : allp ? 11 : 10)
-    return { hb, oben, unten, mitte: (oben + unten) / 2 }
+    // rechte Kante: beim allpoligen Zähler endet der Kasten vor dem PE
+    const ohnePE = l.n.leiter.filter((le) => le !== 'PE').map((le) => cx(l, le))
+    const rechts = allp && l.n.def.symbol === 'zaehler' && ohnePE.length ? Math.max(...ohnePE) + 2 : l.x + hb
+    return { hb, oben, unten, mitte: (oben + unten) / 2, rechts }
   }
   // Anschlüsse je Gerät zählen, damit mehrere Leitungen nebeneinander liegen
   const zaehl = new Map<string, number>()
@@ -312,7 +317,8 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     switch (seite(l)) {
       case 'oben': return { p: [l.x + v, g.oben], s: [l.x + v, g.oben - stich] }
       case 'unten': return { p: [l.x + v, g.unten], s: [l.x + v, g.unten + stich] }
-      case 'links': return { p: [l.x - g.hb, g.mitte + v], s: [l.x - g.hb - stich, g.mitte + v] }
+      // Einspeisekette: rechts oben anfahren, Beschriftung steht darunter
+      case 'kette': return { p: [g.rechts, g.oben + 1.5 + i * 1.6], s: [g.rechts + stich, g.oben + 1.5 + i * 1.6] }
       default: return { p: [l.x + g.hb, g.mitte + v], s: [l.x + g.hb + stich, g.mitte + v] }
     }
   }
@@ -320,16 +326,15 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     let a = nachId.get(d.von), b = nachId.get(d.nach)
     if (!a || !b || a === b) return
     // Geräte in der Einspeisekette werden seitlich angefahren: dort immer als Ziel routen
-    if (seite(a) === 'links' && seite(b) !== 'links') [a, b] = [b, a]
+    if (seite(a) === 'kette' && seite(b) !== 'kette') [a, b] = [b, a]
     const stich = 3 + i * 1.6
     const q = anschluss(a, stich), z = anschluss(b, stich)
     let pkt: number[][]
     let ecke: number[]
-    if (seite(b) === 'links') {
-      // Querweg oberhalb der Beschriftung des Zielgeräts führen
-      const spur = Math.min(q.s[1], b.symTop - 1.5 - i * 1.6)
-      ecke = [z.s[0], spur]
-      pkt = [q.p, q.s, [q.s[0], spur], ecke, z.s, z.p]
+    if (seite(b) === 'kette' && seite(a) === 'oben' && q.p[1] > z.p[1] + 1) {
+      // direkt: senkrecht hoch, dann waagerecht in die rechte Seite des Geräts
+      ecke = [q.p[0], z.p[1]]
+      pkt = [q.p, ecke, z.p]
     } else {
       ecke = [z.s[0], q.s[1]]
       pkt = [q.p, q.s, ecke, z.s, z.p]
@@ -338,8 +343,9 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
     svg.kreis(z.p[0], z.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
     if (d.art) {
-      const lang = Math.abs(ecke[0] - q.s[0]) > 8
-      const tx = lang ? (q.s[0] + ecke[0]) / 2 : z.s[0] + 1
+      const direkt = pkt.length === 3
+      const lang = direkt || Math.abs(ecke[0] - q.s[0]) > 8
+      const tx = direkt ? (ecke[0] + z.p[0]) / 2 : lang ? (q.s[0] + ecke[0]) / 2 : z.s[0] + 1
       const ty = lang ? ecke[1] - 0.8 : (ecke[1] + z.s[1]) / 2
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
@@ -682,11 +688,12 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
   }
 }
 
-function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: Cx, mitTabelle: boolean) {
+function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: Cx, mitTabelle: boolean, datenAnschluesse = 0) {
   const n = l.n
   const rechts = allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + (n.def.durchgang ? 3.5 : 4.5) : l.x + (n.def.durchgang ? 5.5 : 6.5)
   const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
-  let y = l.symTop + 3.6
+  // Bei Datenanschlüssen rechts oben (Einspeisekette) die Beschriftung darunter beginnen
+  let y = l.symTop + 3.6 + (l.kette && datenAnschluesse ? 2.5 + datenAnschluesse * 1.6 : 0)
   svg.text(rechts, y, n.bmk, { groesse: 2.4, fett: true })
   y += 2.8
   if (kurz.trim()) {
