@@ -155,3 +155,4 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .hilfslinie { position: absolute; border-left: 1px dashed #e11d74; border-top: 1px dashed #e11d74; pointer-events: none; z-index: 1000; }
 .eigenschaften label.haken { display: flex; flex-direction: row; align-items: center; gap: 6px; margin-top: -2px; font-size: 12px; }
 .kn-fest { font-size: 10px; }
+.react-flow__handle.verdeckt { opacity: 0; pointer-events: none; }
