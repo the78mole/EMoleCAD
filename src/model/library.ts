@@ -3,7 +3,7 @@ import type { ParamWert } from './types'
 export type SymbolArt =
   | 'hak' | 'zaehler' | 'sls' | 'trenner' | 'sicherung' | 'ls' | 'rcd' | 'rcbo' | 'spd'
   | 'wechselrichter' | 'pvgen' | 'speicher' | 'wallbox' | 'waermepumpe' | 'verbraucher'
-  | 'steuerbox' | 'smgw' | 'verteiler' | 'klemme' | 'schiene'
+  | 'steuerbox' | 'smgw' | 'verteiler' | 'klemme' | 'schiene' | 'pas'
 
 export interface ParamDef {
   key: string
@@ -36,6 +36,10 @@ export interface TypDef {
   params: ParamDef[]
   /** Hat eine Kommunikationsschnittstelle (Datenverbindungen möglich) */
   daten?: boolean
+  /** Kann an den Potentialausgleich angeschlossen werden */
+  pa?: boolean
+  /** Gehört nur zum Potentialausgleich, nicht zum Strompfad (z.B. PAS) */
+  potential?: boolean
   /** Kurzbeschriftung im Plan aus den Parametern */
   kurz?: (p: Record<string, ParamWert>) => string
 }
@@ -52,7 +56,7 @@ export const VERWENDUNG: Record<string, string> = {
 
 export const BIBLIOTHEK: TypDef[] = [
   {
-    typ: 'hausanschluss', label: 'Hausanschluss (HAK)', kategorie: 'Einspeisung', bmk: 'XD', farbe: '#6b7280',
+    typ: 'hausanschluss', pa: true, label: 'Hausanschluss (HAK)', kategorie: 'Einspeisung', bmk: 'XD', farbe: '#6b7280',
     pole: 3, poleWaehlbar: false, kinder: true, wurzel: true, durchgang: true, symbol: 'hak',
     params: [
       { key: 'sicherung', label: 'Vorsicherung', art: 'zahl', einheit: 'A', standard: 63 },
@@ -132,7 +136,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.charakteristik)}${n(p.nennstrom)} ${n(p.fehlerstrom)}mA`,
   },
   {
-    typ: 'spd', label: 'Überspannungsschutz (SPD)', kategorie: 'Schutz', bmk: 'FA', farbe: '#eab308',
+    typ: 'spd', pa: true, label: 'Überspannungsschutz (SPD)', kategorie: 'Schutz', bmk: 'FA', farbe: '#eab308',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'spd',
     params: [{ key: 'spdtyp', label: 'Typ', art: 'auswahl', optionen: ['1+2', '2', '3'], standard: '1+2' }],
     kurz: (p) => `SPD Typ ${n(p.spdtyp)}`,
@@ -148,7 +152,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kW${p.modell ? ' ' + p.modell : ''}`,
   },
   {
-    typ: 'pv_generator', label: 'PV-Generator', kategorie: 'Erzeugung', bmk: 'GC', farbe: '#22c55e',
+    typ: 'pv_generator', pa: true, label: 'PV-Generator', kategorie: 'Erzeugung', bmk: 'GC', farbe: '#22c55e',
     pole: 1, poleWaehlbar: false, kinder: false, dc: true, durchgang: false, symbol: 'pvgen',
     params: [
       { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kWp', standard: 9.9 },
@@ -207,7 +211,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => n(p.modell) || 'SMGW',
   },
   {
-    typ: 'sammelschiene', label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'WD', farbe: '#1e293b',
+    typ: 'sammelschiene', pa: true, label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'WD', farbe: '#1e293b',
     pole: 3, poleWaehlbar: false, kinder: true, durchgang: true, symbol: 'schiene',
     params: [
       { key: 'nennstrom', label: 'Bemessungsstrom', art: 'zahl', einheit: 'A', standard: 63 },
@@ -216,10 +220,19 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `Sammelschiene${p.nennstrom ? ' ' + p.nennstrom + 'A' : ''}${p.querschnitt ? ' ' + p.querschnitt : ''}`,
   },
   {
-    typ: 'unterverteilung', label: 'Unterverteilung', kategorie: 'Sonstiges', bmk: 'UC', farbe: '#334155',
+    typ: 'unterverteilung', pa: true, label: 'Unterverteilung', kategorie: 'Sonstiges', bmk: 'UC', farbe: '#334155',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'verteiler',
     params: [{ key: 'ort', label: 'Ort', art: 'text', standard: '' }],
     kurz: (p) => n(p.ort),
+  },
+  {
+    typ: 'pas', pa: true, potential: true, label: 'Potentialausgleichsschiene (PAS)', kategorie: 'Einspeisung', bmk: 'XE', farbe: '#2e9e3e',
+    pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'pas',
+    params: [
+      { key: 'erder', label: 'Erder', art: 'auswahl', optionen: ['Fundamenterder', 'Ringerder', 'Tiefenerder', 'ohne'], standard: 'Fundamenterder' },
+      { key: 'querschnitt', label: 'Erdungsleiter', art: 'text', einheit: 'mm²', standard: '' },
+    ],
+    kurz: (p) => `PAS${p.erder && p.erder !== 'ohne' ? ', ' + p.erder : ''}`,
   },
 ]
 

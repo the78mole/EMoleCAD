@@ -52,11 +52,20 @@ export interface Datenverbindung {
   art?: string
 }
 
+/** Potentialausgleichsverbindung (z.B. PAS–HAK), getrennt von den Stromleitungen */
+export interface PaVerbindung {
+  von: string
+  nach: string
+  /** Leiterquerschnitt, z.B. "16" (mm²) */
+  querschnitt?: string
+}
+
 export interface Projekt {
   projekt: ProjektInfo
   netz: { form: Netzform; spannung?: string }
   komponenten: Komponente[]
   datenverbindungen?: Datenverbindung[]
+  potentialausgleich?: PaVerbindung[]
   /** Positionen im Node-Editor, rein visuell */
   editor?: Record<string, { x: number; y: number }>
 }

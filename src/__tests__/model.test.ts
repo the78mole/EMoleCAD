@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { BEISPIEL_YAML } from '../model/beispiel'
 import { parseYaml, toYaml, YamlFehler } from '../model/yaml'
 import { analysiere } from '../model/analyse'
-import { hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren } from '../model/ops'
+import { hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren, paTrennen, paVerbinden } from '../model/ops'
 import { zeichnePlan } from '../schematic/render'
 
 describe('YAML', () => {
   it('Beispiel lässt sich parsen und ohne Verlust zurückschreiben', () => {
     const p = parseYaml(BEISPIEL_YAML)
-    expect(p.komponenten).toHaveLength(27)
+    expect(p.komponenten).toHaveLength(28)
     expect(parseYaml(toYaml(p))).toEqual(p)
   })
   it('Querschnitt mit Komma bleibt erhalten', () => {
@@ -179,6 +179,35 @@ describe('Plan', () => {
       const baum = zeichnePlan(a, { modus, farbig: true, netz: p.netz, anordnung: 'baum' })
       expect(baum.inhalt).not.toContain('Stromkreis')
       expect(baum.inhalt).not.toContain('NaN')
+    }
+  })
+})
+
+describe('Potentialausgleich', () => {
+  it('PAS steht außerhalb des Strompfads und ohne Meldungen', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    const a = analysiere(p)
+    expect(a.potential.map((n) => n.k.id)).toEqual(['XE1'])
+    expect(a.wurzeln.some((n) => n.k.id === 'XE1')).toBe(false)
+    expect(a.meldungen.filter((m) => m.id === 'XE1')).toEqual([])
+  })
+  it('Verbindungen folgen Umbenennen, Löschen und Neu nummerieren', () => {
+    let p = parseYaml(BEISPIEL_YAML)
+    expect(p.potentialausgleich).toHaveLength(3)
+    p = aktualisieren(p, 'XE1', { ...p.komponenten.find((k) => k.id === 'XE1')!, id: 'XE9' })
+    expect(p.potentialausgleich!.every((d) => d.von === 'XE9')).toBe(true)
+    expect(neuNummerieren(p).potentialausgleich!.every((d) => d.von === 'XE1')).toBe(true)
+    expect(paVerbinden(p, 'FA1', 'XE9')).toBe(p) // schon vorhanden (Richtung egal)
+    expect(paTrennen(p, 'WD1', 'XE9').potentialausgleich).toHaveLength(2)
+    expect(entfernen(p, ['XE9']).potentialausgleich).toEqual([])
+  })
+  it('wird grün gezeichnet, SPD ohne eigenes Erdungssymbol', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    for (const modus of ['einpolig', 'allpolig'] as const) {
+      const plan = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz, pa: p.potentialausgleich })
+      expect(plan.inhalt).toContain('-XE1')
+      expect(plan.inhalt).toContain('16 mm²')
+      expect(plan.inhalt).toContain('#2e9e3e')
     }
   })
 })

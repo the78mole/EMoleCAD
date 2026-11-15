@@ -23,6 +23,10 @@ komponenten:
     quelle: XD1
     kabel: { typ: NYY-J, querschnitt: 5x16 }
     params: { nennstrom: 63, querschnitt: 12x5 }
+  # Potentialausgleichsschiene: nur über "potentialausgleich" verbunden, keine Quelle
+  - id: XE1
+    typ: pas
+    params: { erder: Fundamenterder, querschnitt: 16 }
   - id: FA1
     typ: spd
     name: Überspannungsschutz
@@ -160,4 +164,9 @@ komponenten:
 datenverbindungen:
   - { von: KE1, nach: PG1, art: LMN }
   - { von: KE2, nach: KE1, art: CLS }
+# Potentialausgleich (eigene Verkabelung, grün im Plan)
+potentialausgleich:
+  - { von: XE1, nach: XD1, querschnitt: 16 }
+  - { von: XE1, nach: WD1, querschnitt: 16 }
+  - { von: XE1, nach: FA1, querschnitt: 16 }
 `

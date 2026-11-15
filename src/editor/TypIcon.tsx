@@ -30,6 +30,9 @@ export function TypIcon({ art, groesse = 18 }: { art: SymbolArt; groesse?: numbe
     case 'speicher':
       inhalt = <><rect x="2" y="4" width="16" height="12" {...s} /><line x1="6" y1="9" x2="14" y2="9" {...s} /><line x1="8" y1="12" x2="12" y2="12" {...s} strokeWidth={2.2} /></>
       break
+    case 'pas':
+      inhalt = <><rect x="2" y="7" width="16" height="4" {...s} /><line x1="10" y1="11" x2="10" y2="14" {...s} /><line x1="5" y1="14" x2="15" y2="14" {...s} /><line x1="7" y1="16.5" x2="13" y2="16.5" {...s} /><line x1="9" y1="19" x2="11" y2="19" {...s} /></>
+      break
     case 'verteiler':
       inhalt = <><rect x="2" y="3" width="16" height="14" {...s} strokeDasharray="2 1.5" /><text x="10" y="13" fontSize="6.5" textAnchor="middle" fill="currentColor" fontWeight="bold">UV</text></>
       break

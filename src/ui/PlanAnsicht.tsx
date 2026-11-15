@@ -34,7 +34,7 @@ function schreibe(key: string, v: unknown) {
 export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: DarstellungsOptionen, modi: Modus[]): Blatt[] {
   const v = VORLAGEN.find((x) => x.id === d.vorlage) ?? VORLAGEN[0]
   return modi.map((m, i) =>
-    erzeugeBlatt(zeichnePlan(analyse, { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen }), projekt, m, v, i + 1, modi.length, d.farbig),
+    erzeugeBlatt(zeichnePlan(analyse, { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }), projekt, m, v, i + 1, modi.length, d.farbig),
   )
 }
 

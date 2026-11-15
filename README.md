@@ -141,6 +141,21 @@ datenverbindungen:
 
 Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, SMGW, Steuerbox, Wechselrichter, Speicher, Wallbox, Wärmepumpe) violette Anschlüsse links/rechts. Eine Verbindung von rechts nach links erzeugt eine Datenverbindung; die Art (LMN, CLS, Modbus …) lässt sich in den Eigenschaften bearbeiten. Für SMGW–Zähler und SMGW–Steuerbox wird LMN bzw. CLS vorbelegt.
 
+### Potentialausgleich
+
+Die Potentialausgleichsschiene (`typ: pas`, Kennbuchstaben XE) hat keine Quelle. Ihre Verbindungen stehen getrennt vom Strompfad in `potentialausgleich` und werden im Plan grün mit Querschnitt gezeichnet. Am SPD ersetzt die Verbindung das Erdungssymbol.
+
+```yaml
+komponenten:
+  - { id: XE1, typ: pas, params: { erder: Fundamenterder, querschnitt: 16 } }
+potentialausgleich:
+  - { von: XE1, nach: XD1, querschnitt: 16 }   # HAK
+  - { von: XE1, nach: WD1, querschnitt: 16 }   # Sammelschiene
+  - { von: XE1, nach: FA1, querschnitt: 16 }   # Überspannungsschutz
+```
+
+Im Editor haben anschließbare Bausteine (HAK, Sammelschiene, SPD, Unterverteilung, PV-Generator, PAS) grüne runde Anschlüsse unten links/rechts.
+
 ## Architektur
 
 ```

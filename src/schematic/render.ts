@@ -1,6 +1,6 @@
 import type { Analyse, Knoten, LeiterName } from '../model/analyse'
 import type { SymbolArt } from '../model/library'
-import type { Datenverbindung, Projekt } from '../model/types'
+import type { Datenverbindung, PaVerbindung, Projekt } from '../model/types'
 import { Svg } from './svg'
 
 export type Modus = 'einpolig' | 'allpolig'
@@ -15,6 +15,7 @@ export interface PlanOptionen {
   anordnung?: Anordnung
   tabelle?: boolean
   daten?: Datenverbindung[]
+  pa?: PaVerbindung[]
 }
 
 export interface Plan {
@@ -47,6 +48,10 @@ interface Lage {
   /** Spaltenbereich bei Endstromkreisen */
   slotX0?: number
   slotW?: number
+  /** Rechtes Ende der gezeichneten Sammelleitung */
+  busMax?: number
+  /** Am Potentialausgleich angeschlossen (Erdungssymbol entfällt beim SPD) */
+  pa?: boolean
 }
 
 type Cx = (l: Lage, le: LeiterName, liste?: LeiterName[]) => number
@@ -66,7 +71,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const H = allp ? 42 : 32
   const farbe = (l: LeiterName) => (allp && o.farbig ? LEITERFARBE[l] : '#000')
 
-  const alle = [...a.knoten.values()]
+  const alle = [...a.knoten.values()].filter((n) => !n.def.potential)
   if (!alle.length) {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
     return { inhalt: svg.toString(), breite: 120, hoehe: 40 }
@@ -204,6 +209,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       const fa = farbe(le)
       if (!istAbzweig) svg.linie(px, l.kette || l.aufwaerts ? l.symTop : l.symBot, px, y, { farbe: fa })
       const schiene = l.n.def.symbol === 'schiene'
+      if (max - min > 0.01) l.busMax = Math.max(l.busMax ?? -Infinity, max)
       if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa, breite: schiene ? (allp ? 0.8 : 1.1) : istKopf ? 0.5 : 0.35 })
       for (const p of punkte) {
         const grad = p.senk + (p.x > min + 0.01 ? 1 : 0) + (p.x < max - 0.01 ? 1 : 0)
@@ -211,6 +217,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       }
     })
   }
+
+  const paIds = new Set((o.pa ?? []).flatMap((d) => [d.von, d.nach]))
+  for (const l of lagen.values()) if (paIds.has(l.n.k.id)) l.pa = true
 
   // --- Komponenten ---
   for (const l of lagen.values()) {
@@ -249,8 +258,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   }
 
   datenLinien(svg, lagen, o, allp, cx)
+  const paUnten = potentialausgleich(svg, a, lagen, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
 
-  let hoehe = hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN
+  let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, paUnten + 4)
   if (hager && o.tabelle !== false) {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined).sort((p, q) => p.slotX0! - q.slotX0!)
     if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12, trennX) + 4
@@ -336,6 +346,101 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
   })
+}
+
+// ---------- Potentialausgleich ----------
+
+const PA_FARBE = '#2e9e3e'
+
+/** Zeichnet Potentialausgleichsschienen und ihre Verbindungen (eigene Verkabelung, getrennt vom Strompfad).
+ *  Gibt die unterste belegte y-Position zurück. */
+function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }): number {
+  const liste = o.pa ?? []
+  if (!a.potential.length && !liste.length) return 0
+  const fa = o.farbig ? PA_FARBE : '#000'
+  const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
+  const stil = { farbe: fa, breite: 0.35 }
+  let unten = 0
+
+  // Anschlusspunkt eines Geräts: p = am Gerät, w = Weg dorthin (Punkt, von dem es senkrecht weitergeht)
+  const anschluss = (l: Lage): { p: number[]; x: number } => {
+    const n = l.n
+    if (n.def.symbol === 'spd' && !l.aufwaerts) return { p: [l.x, l.symTop + (allp ? 12.5 : 12)], x: l.x }
+    if (n.def.symbol === 'schiene' && l.busMax !== undefined) {
+      const y = l.busY.PE ?? l.busY.L1
+      if (y !== undefined) return { p: [l.busMax, y], x: l.busMax }
+    }
+    const xs = n.leiter.map((le) => cx(l, le))
+    const rechts = allp ? Math.max(...xs) + (n.def.durchgang ? 3.5 : 6) : l.x + (n.def.durchgang ? 4.5 : 5)
+    // rechts am Gerät, unten (Beschriftung steht oben rechts)
+    return { p: [rechts, l.symBot - 2], x: rechts + 3 }
+  }
+  const leitung = (q: { p: number[]; x: number }, y: number, text?: string) => {
+    const [px, py] = q.p
+    svg.pfad(`M ${px} ${py} H ${q.x} V ${y}`, stil)
+    svg.kreis(px, py, 0.45, { farbe: fa, fuellung: fa, breite: 0.1 })
+    if (text) svg.text(q.x + 0.8, (Math.max(py, y - 8) + y) / 2, text, { groesse: 1.6, farbe: fa })
+  }
+  const querschnitt = (d: PaVerbindung) => (d.querschnitt ? `${d.querschnitt}${/mm/.test(d.querschnitt) ? '' : ' mm²'}` : undefined)
+
+  let yFrei = frei.y
+  for (const pas of a.potential) {
+    const id = pas.k.id
+    const verb = liste.filter((d) => d.von === id || d.nach === id)
+    const partner = verb.map((d) => ({ d, l: nachId.get(d.von === id ? d.nach : d.von) })).filter((v): v is { d: PaVerbindung; l: Lage } => !!v.l)
+    const ans = partner.map((v) => ({ ...v, a: anschluss(v.l) }))
+    // Schienenhöhe: unter allen Anschlüssen, Geräte der Einspeisekette möglichst waagerecht anfahren
+    const kette = ans.filter((v) => v.l.kette).map((v) => v.a.p[1])
+    const sonst = ans.filter((v) => !v.l.kette).map((v) => v.a.p[1] + 6)
+    let y = Math.max(...kette, ...sonst, -Infinity)
+    if (!Number.isFinite(y)) y = yFrei
+    yFrei = y + 12
+    // Geräte der Einspeisekette auf Schienenhöhe werden direkt waagerecht angefahren
+    const direkt = ans.filter((v) => v.l.kette && Math.abs(v.a.p[1] - y) < 0.01)
+    const senk = ans.filter((v) => !direkt.includes(v))
+    const xs = senk.map((v) => v.a.x)
+    const links = direkt.length ? Math.max(...direkt.map((v) => v.a.p[0])) + 14 : frei.x
+    const x0 = xs.length ? Math.min(Math.min(...xs) - 4, Math.max(links, Math.min(...xs) - 4)) : links
+    const x1 = Math.max(x0 + 24, ...xs.map((x) => x + 6))
+    for (const v of senk) leitung(v.a, y, querschnitt(v.d))
+    for (const v of direkt) {
+      const [px, py] = v.a.p
+      svg.linie(px, py, x0, py, stil)
+      svg.kreis(px, py, 0.45, { farbe: fa, fuellung: fa, breite: 0.1 })
+      const t = querschnitt(v.d)
+      if (t) svg.text((px + x0) / 2, py - 0.8, t, { groesse: 1.6, farbe: fa, anker: 'middle' })
+    }
+    // Schiene mit Klemmpunkten
+    svg.rechteck(x0, y - 0.6, x1 - x0, 1.2, { farbe: fa, fuellung: '#fff', breite: 0.35 })
+    for (const x of xs) svg.punkt(x, y, fa, 0.45)
+    const p = pas.k.params ?? {}
+    const erder = p.erder && p.erder !== 'ohne' ? String(p.erder) : ''
+    const tx = x1 + 2
+    svg.text(tx, y - 0.4, pas.bmk, { groesse: 2.3, fett: true })
+    svg.text(tx, y + 2.4, pas.k.name ?? 'Potentialausgleichsschiene', { groesse: 1.8 })
+    if (erder) {
+      const ex = x1 - 3
+      svg.linie(ex, y + 0.7, ex, y + 4, { farbe: fa, breite: 0.35 })
+      erde(svg, ex, y + 4, fa)
+      svg.text(tx, y + 5, erder + (p.querschnitt ? `, ${p.querschnitt} mm²` : ''), { groesse: 1.6, farbe: '#444' })
+    }
+    unten = Math.max(unten, y + 7)
+  }
+
+  // Potentialausgleich direkt zwischen zwei Geräten (ohne PAS)
+  const pasIds = new Set(a.potential.map((n) => n.k.id))
+  for (const d of liste) {
+    if (pasIds.has(d.von) || pasIds.has(d.nach)) continue
+    const la = nachId.get(d.von), lb = nachId.get(d.nach)
+    if (!la || !lb || la === lb) continue
+    const qa = anschluss(la), qb = anschluss(lb)
+    const y = Math.max(qa.p[1], qb.p[1]) + 4
+    leitung(qa, y, querschnitt(d))
+    leitung(qb, y)
+    svg.linie(qa.x, y, qb.x, y, stil)
+    unten = Math.max(unten, y + 2)
+  }
+  return unten
 }
 
 function istNachfahr(n: Knoten, vorfahr: Knoten): boolean {
@@ -611,7 +716,7 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       }
       svg.rechteck(x - w / 2, bt, w, h)
       boxInhalt(svg, art, x - w / 2, bt, w, h)
-      if (art === 'spd') {
+      if (art === 'spd' && !l.pa) {
         if (l.aufwaerts) { verbindung(bt - 2, bt); erde(svg, x, bt - 2, '#000', true) }
         else { verbindung(bt + h, bt + h + 2); erde(svg, x, bt + h + 2) }
       }
@@ -637,7 +742,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     if (n.kinder.length) for (const le of l.aus) svg.linie(cx(l, le, l.aus), auf ? y0 : bt + h, cx(l, le, l.aus), auf ? bt : y1, { farbe: farbe(le) })
     svg.rechteck(bx, bt, w, h)
     boxInhalt(svg, art, bx, bt, w, h)
-    if (art === 'spd') {
+    if (art === 'spd' && !l.pa) {
       if (auf) { svg.linie(l.x, bt - 2, l.x, bt); erde(svg, l.x, bt - 2, '#000', true) }
       else { svg.linie(l.x, bt + h, l.x, bt + h + 2); erde(svg, l.x, bt + h + 2) }
     }

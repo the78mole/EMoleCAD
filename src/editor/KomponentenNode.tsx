@@ -18,7 +18,9 @@ export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp
   const leiter = knoten ? (knoten.dc ? 'DC' : knoten.pole === 3 ? '3~' : knoten.phase ?? '1~') : ''
   return (
     <div className={`kn ${selected ? 'sel' : ''} ${meldung ?? ''}`} style={{ ['--farbe' as string]: def.farbe }}>
-      {!def.wurzel && <Handle type="target" id="strom-in" position={Position.Top} />}
+      {!def.wurzel && !def.potential && <Handle type="target" id="strom-in" position={Position.Top} />}
+      {def.pa && <Handle type="target" id="pa-in" position={Position.Left} className="pa-handle" title="Potentialausgleich (Eingang)" />}
+      {def.pa && <Handle type="source" id="pa-out" position={Position.Right} className="pa-handle" title="Potentialausgleich ziehen" />}
       {def.daten && <Handle type="target" id="daten-in" position={Position.Left} className="daten-handle" title="Datenverbindung (Eingang)" />}
       {def.daten && <Handle type="source" id="daten-out" position={Position.Right} className="daten-handle" title="Datenverbindung ziehen" />}
       <div className="kn-kopf">
