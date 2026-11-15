@@ -74,8 +74,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const alle = [...a.knoten.values()].filter((n) => !n.def.potential)
   if (!alle.length && a.potential.length) {
     // nur Potentialausgleichsschienen vorhanden
-    const unten = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 })
-    return { inhalt: svg.toString(), breite: 140, hoehe: unten + 4 }
+    const pa = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 })
+    return { inhalt: svg.toString(), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4 }
   }
   if (!alle.length) {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
@@ -175,7 +175,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     x += 6
   }
   for (const w of a.wurzeln) if (!lagen.has(w)) x += platziere(w, x) + 6
-  const breite = Math.max(x, kopfBreite + 60)
+  let breite = Math.max(x, kopfBreite + 60)
   const yNetz = rowTop0 + zeilen * H - 2
 
   const cx: Cx = (l, leiter, liste = l.n.leiter) => {
@@ -264,9 +264,10 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   }
 
   datenLinien(svg, lagen, o, allp, cx)
-  const paUnten = potentialausgleich(svg, a, lagen, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
+  const pa = potentialausgleich(svg, a, lagen, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
+  breite = Math.max(breite, pa.rechts + 4)
 
-  let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, paUnten + 4)
+  let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4)
   if (hager && o.tabelle !== false) {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined).sort((p, q) => p.slotX0! - q.slotX0!)
     if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12, trennX) + 4
@@ -360,13 +361,14 @@ const PA_FARBE = '#2e9e3e'
 
 /** Zeichnet Potentialausgleichsschienen und ihre Verbindungen (eigene Verkabelung, getrennt vom Strompfad).
  *  Gibt die unterste belegte y-Position zurück. */
-function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }): number {
+function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }): { unten: number; rechts: number } {
   const liste = o.pa ?? []
-  if (!a.potential.length && !liste.length) return 0
+  if (!a.potential.length && !liste.length) return { unten: 0, rechts: 0 }
   const fa = o.farbig ? PA_FARBE : '#000'
   const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
   const stil = { farbe: fa, breite: 0.35 }
   let unten = 0
+  let rechts = 0
 
   // Anschlusspunkt eines Geräts: p = am Gerät, w = Weg dorthin (Punkt, von dem es senkrecht weitergeht)
   const anschluss = (l: Lage): { p: number[]; x: number; pe?: boolean } => {
@@ -434,6 +436,9 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
       svg.text(tx, y + 5, erder + (p.querschnitt ? `, ${p.querschnitt} mm²` : ''), { groesse: 1.6, farbe: '#444' })
     }
     schienen.set(id, { x0, x1, y })
+    // Beschriftung rechts der Schiene (ca. 0,95 mm je Zeichen bei 1,8 mm Schrift)
+    const texte = [pas.k.name ?? 'Potentialausgleichsschiene', erder + (p.querschnitt ? `, ${p.querschnitt} mm²` : '')]
+    rechts = Math.max(rechts, tx + Math.max(...texte.map((t) => t.length)) * 0.95)
     unten = Math.max(unten, y + 7)
   }
   // Verbindungen zwischen zwei Schienen: von Schienenende zu Schienenende
@@ -461,7 +466,7 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     svg.linie(qa.x, y, qb.x, y, stil)
     unten = Math.max(unten, y + 2)
   }
-  return unten
+  return { unten, rechts }
 }
 
 function istNachfahr(n: Knoten, vorfahr: Knoten): boolean {
