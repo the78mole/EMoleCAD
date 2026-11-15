@@ -15,10 +15,16 @@ type W = Window & {
   showSaveFilePicker?: (o: unknown) => Promise<Handle>
 }
 const w = window as W
-export const fsApi = typeof w.showOpenFilePicker === 'function' && typeof w.showSaveFilePicker === 'function'
+/** In einem fremden iframe (z. B. Vorschau) verweigert der Browser die Dateiauswahl. */
+function eingebettet() {
+  try { return window.self !== window.top } catch { return true }
+}
+export const fsApi = typeof w.showOpenFilePicker === 'function' && typeof w.showSaveFilePicker === 'function' && !eingebettet()
 
 const TYPEN = [{ description: 'MoleCAD-Projekt (YAML)', accept: { 'text/yaml': ['.yaml', '.yml'] } }]
 const abbruch = (e: unknown) => (e as Error)?.name === 'AbortError'
+/** Picker vom Browser blockiert (iframe, Berechtigungsrichtlinie) → auf Upload/Download ausweichen */
+const blockiert = (e: unknown) => ['SecurityError', 'NotAllowedError'].includes((e as Error)?.name)
 
 async function erlaubt(h: Handle) {
   if (!h.queryPermission) return true
@@ -59,7 +65,7 @@ export const lokal: Speicherort = {
         return { ref: await merke(h), text: await (await h.getFile()).text() }
       } catch (e) {
         if (abbruch(e)) return undefined
-        throw e
+        if (!blockiert(e)) throw e
       }
     }
     const f = await dateiWaehlen()
@@ -95,7 +101,7 @@ export const lokal: Speicherort = {
         return ref
       } catch (e) {
         if (abbruch(e)) return undefined
-        throw e
+        if (!blockiert(e)) throw e
       }
     }
     herunterladen(text, vorschlag, 'text/yaml')

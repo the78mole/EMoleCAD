@@ -53,7 +53,7 @@ export function DateiMenue(p: Props) {
             <button onClick={tu(p.onSpeichernUnter)}>Speichern unter…<kbd>{kuerzel('⇧S')}</kbd></button>
             <hr />
             <button onClick={tu(p.onBeispiel)}>Beispiel laden</button>
-            {!zurueck && <div className="menue-hinweis">Dieser Browser kann Dateien nicht direkt überschreiben; Speichern lädt die YAML-Datei herunter. Chrome oder Edge speichern direkt in die geöffnete Datei.</div>}
+            {!zurueck && <div className="menue-hinweis">Hier kann nicht direkt in Dateien geschrieben werden (Firefox/Safari oder eingebettete Vorschau); Speichern lädt die YAML-Datei herunter. Direkt geöffnet in Chrome oder Edge wird in die geöffnete Datei gespeichert.</div>}
           </div>
         )}
       </div>
