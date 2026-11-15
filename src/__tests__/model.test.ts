@@ -197,10 +197,14 @@ describe('Potentialausgleich', () => {
     p = aktualisieren(p, 'PAS1', { ...p.komponenten.find((k) => k.id === 'PAS1')!, id: 'PAS9' })
     expect(p.potentialausgleich!.every((d) => d.von === 'PAS9')).toBe(true)
     const paare = (q: typeof p) => q.potentialausgleich!.map((d) => `${d.von}-${d.nach}`)
-    expect(paare(neuNummerieren(p))).toEqual(['PAS1-XD1', 'PAS1-WD1', 'PAS1-FA1'])
+    const n = neuNummerieren(p)
+    expect(paare(n)).toEqual(['PAS1-XD1', 'PAS1-WD1', 'PAS1-FA1'])
+    expect(n.komponenten.find((k) => k.id === 'PAS1')?.typ).toBe('pas') // Schiene selbst mit umbenannt
     expect(paVerbinden(p, 'FA1', 'PAS9')).toBe(p) // schon vorhanden (Richtung egal)
     expect(paare(paTrennen(p, 'WD1', 'PAS9'))).toEqual(['PAS9-XD1', 'PAS9-FA1'])
-    expect(entfernen(p, ['PAS9']).potentialausgleich).toEqual([])
+    // Löschen der Schiene entfernt nur ihre eigenen Verbindungen
+    const mitDirekt = paVerbinden(p, 'XD1', 'FA1')
+    expect(paare(entfernen(mitDirekt, ['PAS9']))).toEqual(['XD1-FA1'])
   })
   it('wird grün gezeichnet, SPD ohne eigenes Erdungssymbol', () => {
     const p = parseYaml(BEISPIEL_YAML)
