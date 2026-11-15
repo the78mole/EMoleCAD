@@ -34,6 +34,11 @@ export default function App() {
   const [fehler, setFehler] = useState<{ text: string; zeile?: number }>()
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem('molecad.tab') as Tab) || 'grafisch')
   const [links, setLinks] = useState(() => Number(localStorage.getItem('molecad.split')) || 55)
+  const [eingeklappt, setEingeklappt] = useState<'keins' | 'editor' | 'plan'>(() => (localStorage.getItem('molecad.eingeklappt') as 'keins' | 'editor' | 'plan') || 'keins')
+  const klappe = (w: 'keins' | 'editor' | 'plan') => {
+    setEingeklappt(w)
+    try { localStorage.setItem('molecad.eingeklappt', w) } catch { /* egal */ }
+  }
   const [meldungenOffen, setMeldungenOffen] = useState(true)
   const dateiInput = useRef<HTMLInputElement>(null)
 
@@ -108,26 +113,35 @@ export default function App() {
         <input ref={dateiInput} type="file" accept=".yaml,.yml,text/yaml" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) oeffnen(f); e.target.value = '' }} />
       </header>
       <main className="haupt">
-        <section className="links" style={{ width: `${links}%` }}>
-          <div className="tabs">
-            <button className={tab === 'grafisch' ? 'aktiv' : ''} onClick={() => tabWechsel('grafisch')}>Grafischer Editor</button>
-            <button className={tab === 'yaml' ? 'aktiv' : ''} onClick={() => tabWechsel('yaml')}>YAML{fehler ? ' ⚠' : ''}</button>
-            <span className="spacer" />
-            <button className={`meldungen-knopf ${zaehl.fehler ? 'fehler' : zaehl.warnung ? 'warnung' : 'ok'}`} onClick={() => setMeldungenOffen((o) => !o)}>
-              {zaehl.fehler || zaehl.warnung ? `${zaehl.fehler} Fehler · ${zaehl.warnung} Warnungen` : 'Keine Probleme'}
-            </button>
-          </div>
-          <div className="tab-inhalt">
-            {tab === 'grafisch' ? <NodeEditor projekt={projekt} analyse={analyse} onChange={vonEditor} /> : <YamlEditor text={yamlText} onChange={vonYaml} fehler={fehler} />}
-          </div>
-          {meldungenOffen && analyse.meldungen.length > 0 && (
-            <div className="meldungen">
-              {analyse.meldungen.map((m, i) => <div key={i} className={`meldung ${m.stufe}`}>{m.text}</div>)}
+        {eingeklappt === 'editor' ? (
+          <button className="leiste-zu" onClick={() => klappe('keins')} title="Editor einblenden"><span>Editor ▸</span></button>
+        ) : (
+        <section className="links" style={eingeklappt === 'plan' ? { flex: 1 } : { width: `${links}%` }}>
+            <div className="tabs">
+              <button className="einklappen" onClick={() => klappe('editor')} title="Editor einklappen (Plan bekommt die volle Breite)">◂ Einklappen</button>
+              <button className={tab === 'grafisch' ? 'aktiv' : ''} onClick={() => tabWechsel('grafisch')}>Grafischer Editor</button>
+              <button className={tab === 'yaml' ? 'aktiv' : ''} onClick={() => tabWechsel('yaml')}>YAML{fehler ? ' ⚠' : ''}</button>
+              <span className="spacer" />
+              <button className={`meldungen-knopf ${zaehl.fehler ? 'fehler' : zaehl.warnung ? 'warnung' : 'ok'}`} onClick={() => setMeldungenOffen((o) => !o)}>
+                {zaehl.fehler || zaehl.warnung ? `${zaehl.fehler} Fehler · ${zaehl.warnung} Warnungen` : 'Keine Probleme'}
+              </button>
             </div>
-          )}
-        </section>
-        <div className="trenner" onPointerDown={ziehen} />
-        <PlanAnsicht projekt={projekt} analyse={analyse} />
+            <div className="tab-inhalt">
+              {tab === 'grafisch' ? <NodeEditor projekt={projekt} analyse={analyse} onChange={vonEditor} /> : <YamlEditor text={yamlText} onChange={vonYaml} fehler={fehler} />}
+            </div>
+            {meldungenOffen && analyse.meldungen.length > 0 && (
+              <div className="meldungen">
+                {analyse.meldungen.map((m, i) => <div key={i} className={`meldung ${m.stufe}`}>{m.text}</div>)}
+              </div>
+            )}
+          </section>
+        )}
+        {eingeklappt === 'keins' && <div className="trenner" onPointerDown={ziehen} />}
+        {eingeklappt === 'plan' ? (
+          <button className="leiste-zu" onClick={() => klappe('keins')} title="Plan einblenden"><span>◂ Plan</span></button>
+        ) : (
+          <PlanAnsicht projekt={projekt} analyse={analyse} onEinklappen={() => klappe('plan')} />
+        )}
       </main>
     </div>
   )

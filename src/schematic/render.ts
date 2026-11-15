@@ -4,11 +4,16 @@ import type { Projekt } from '../model/types'
 import { Svg } from './svg'
 
 export type Modus = 'einpolig' | 'allpolig'
+/** hager: Einspeisung links von unten nach oben, Abgänge als Spalten rechts, Tabelle unten.
+ *  baum: Einspeisung oben, Baum nach unten. */
+export type Anordnung = 'hager' | 'baum'
 
 export interface PlanOptionen {
   modus: Modus
   farbig: boolean
   netz: Projekt['netz']
+  anordnung?: Anordnung
+  tabelle?: boolean
 }
 
 export interface Plan {
@@ -19,8 +24,9 @@ export interface Plan {
 
 const D = 4 // Leiterabstand allpolig
 const SYM_H = 14
-const OBEN = 16 // Platz für Einspeisungsbeschriftung
+const OBEN = 16 // Platz für Einspeisungsbeschriftung (Baum)
 const BESCHRIFTUNG_UNTEN = 42
+const BUS_ABSTAND = 2.6
 
 const LEITERFARBE: Record<LeiterName, string> = {
   L1: '#7a4a1e', L2: '#111111', L3: '#7d7d7d', N: '#1f6fd1', PE: '#2e9e3e', 'L+': '#c62828', 'L-': '#1f3fa8',
@@ -29,12 +35,18 @@ const LEITERFARBE: Record<LeiterName, string> = {
 interface Lage {
   n: Knoten
   x: number
-  zeile: number
   symTop: number
   symBot: number
   aus: LeiterName[]
   busY: Partial<Record<LeiterName, number>>
+  /** Teil der Einspeisekette (Energiefluss von unten nach oben) */
+  kette: boolean
+  /** Spaltenbereich bei Endstromkreisen */
+  slotX0?: number
+  slotW?: number
 }
+
+type Cx = (l: Lage, le: LeiterName, liste?: LeiterName[]) => number
 
 const istPhase = (l: LeiterName) => l === 'L1' || l === 'L2' || l === 'L3'
 
@@ -47,6 +59,7 @@ function ausgaenge(n: Knoten): LeiterName[] {
 export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const svg = new Svg()
   const allp = o.modus === 'allpolig'
+  const hager = (o.anordnung ?? 'hager') === 'hager'
   const H = allp ? 42 : 32
   const farbe = (l: LeiterName) => (allp && o.farbig ? LEITERFARBE[l] : '#000')
 
@@ -55,18 +68,41 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
     return { inhalt: svg.toString(), breite: 120, hoehe: 40 }
   }
-  const maxZeile = Math.max(...alle.map((n) => n.tiefe))
   const eigeneBreite = (n: Knoten) => (allp ? Math.max(30, n.leiter.length * D + 24) : 26)
+
+  // Einspeisekette: Hausanschluss und alle Durchgangsgeräte bis zur ersten Verzweigung
+  const kette: Knoten[] = []
+  const hauptWurzel = hager ? a.wurzeln.find((w) => w.def.wurzel) : undefined
+  if (hauptWurzel) {
+    let k = hauptWurzel
+    kette.push(k)
+    while (k.kinder.length === 1 && k.def.durchgang && k.kinder[0].def.durchgang) {
+      k = k.kinder[0]
+      kette.push(k)
+    }
+  }
+  const inKette = new Set(kette)
+  const relTiefe = (n: Knoten) => n.tiefe - (hauptWurzel && istNachfahr(n, hauptWurzel) ? kette.length : 0)
+  const baumKnoten = alle.filter((n) => !inKette.has(n))
+  const maxRel = baumKnoten.length ? Math.max(...baumKnoten.map(relTiefe)) : -1
+  const zeilen = Math.max(maxRel + 1, kette.length)
+
+  const busTop = 8
+  const busBand = allp ? 5 * BUS_ABSTAND : 0
+  const rowTop0 = hager ? busTop + busBand + 6 : OBEN
+  const symTopZeile = (z: number) => rowTop0 + z * H + (hager ? 3 : 7)
 
   const lagen = new Map<Knoten, Lage>()
   const platziere = (n: Knoten, x0: number): number => {
-    const zeile = n.kinder.length ? n.tiefe : maxZeile
-    const symTop = OBEN + zeile * H + 7
-    const l: Lage = { n, x: 0, zeile, symTop, symBot: symTop + SYM_H, aus: ausgaenge(n), busY: {} }
+    const zeile = n.kinder.length ? relTiefe(n) : zeilen - 1
+    const symTop = symTopZeile(zeile)
+    const l: Lage = { n, x: 0, symTop, symBot: symTop + SYM_H, aus: ausgaenge(n), busY: {}, kette: false }
     lagen.set(n, l)
     const eigen = eigeneBreite(n)
     if (!n.kinder.length) {
       l.x = x0 + eigen / 2
+      l.slotX0 = x0
+      l.slotW = eigen
       return eigen
     }
     let x = x0
@@ -75,7 +111,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     if (summe < eigen) {
       const verschiebe = (eigen - summe) / 2
       const schiebe = (k: Knoten) => {
-        lagen.get(k)!.x += verschiebe
+        const lk = lagen.get(k)!
+        lk.x += verschiebe
+        if (lk.slotX0 !== undefined) lk.slotX0 += verschiebe
         k.kinder.forEach(schiebe)
       }
       n.kinder.forEach(schiebe)
@@ -86,12 +124,25 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     l.x = n.kinder.length === 1 ? erst : (erst + letzt) / 2
     return summe
   }
-  let x = 6
-  for (const w of a.wurzeln) x += platziere(w, x) + 6
-  const breite = x
-  const hoehe = OBEN + (maxZeile + 1) * H + BESCHRIFTUNG_UNTEN
 
-  const cx = (l: Lage, leiter: LeiterName, liste: LeiterName[] = l.n.leiter) => {
+  let x = 6
+  let kopfBreite = 0
+  if (kette.length) {
+    kopfBreite = allp ? 46 : 40
+    const kx = 6 + (allp ? 12 : 8)
+    kette.forEach((k, i) => {
+      const symTop = symTopZeile(zeilen - 1 - i)
+      lagen.set(k, { n: k, x: kx, symTop, symBot: symTop + SYM_H, aus: ausgaenge(k), busY: {}, kette: true })
+    })
+    x = 6 + kopfBreite
+    for (const c of kette[kette.length - 1].kinder) x += platziere(c, x)
+    x += 6
+  }
+  for (const w of a.wurzeln) if (!lagen.has(w)) x += platziere(w, x) + 6
+  const breite = Math.max(x, kopfBreite + 60)
+  const yNetz = rowTop0 + zeilen * H - 2
+
+  const cx: Cx = (l, leiter, liste = l.n.leiter) => {
     if (!allp) return l.x
     const i = liste.indexOf(leiter)
     return l.x + (i - (liste.length - 1) / 2) * D
@@ -99,14 +150,16 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
 
   // --- Sammelschienen / Verbindungen zwischen Eltern und Kindern ---
   for (const l of lagen.values()) {
-    const kinder = l.n.kinder.map((k) => lagen.get(k)!)
+    const kinder = l.n.kinder.map((k) => lagen.get(k)!).filter((k) => !k.kette)
     if (!kinder.length) continue
     const ausListe = allp ? l.aus : (['L1'] as LeiterName[])
     const benutzt = ausListe.filter((le) => !allp || kinder.some((k) => k.n.leiter.includes(le)))
     benutzt.forEach((le, i) => {
-      const y = l.symBot + 4 + (allp ? i * 2.6 : 0)
+      // Kopf der Einspeisekette: Sammelschiene oben, Leitung von unten kommend
+      const y = l.kette ? busTop + ausListe.indexOf(le) * BUS_ABSTAND : l.symBot + 4 + (allp ? i * BUS_ABSTAND : 0)
       l.busY[le] = y
-      const punkte: { x: number; hoch: boolean; runter: boolean }[] = [{ x: cx(l, le, ausListe), hoch: true, runter: false }]
+      const px = cx(l, le, ausListe)
+      const punkte: { x: number; hoch: boolean; runter: boolean }[] = [{ x: px, hoch: !l.kette, runter: l.kette }]
       for (const k of kinder) {
         if (allp && !k.n.leiter.includes(le)) continue
         const kx = allp ? cx(k, le) : k.x
@@ -117,8 +170,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       const xs = punkte.map((p) => p.x)
       const min = Math.min(...xs), max = Math.max(...xs)
       const fa = farbe(le)
-      svg.linie(cx(l, le, ausListe), l.symBot, cx(l, le, ausListe), y, { farbe: fa })
-      if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa })
+      svg.linie(px, l.kette ? l.symTop : l.symBot, px, y, { farbe: fa })
+      if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa, breite: l.kette ? 0.5 : 0.35 })
       for (const p of punkte) {
         const grad = (p.hoch ? 1 : 0) + (p.runter ? 1 : 0) + (p.x > min + 0.01 ? 1 : 0) + (p.x < max - 0.01 ? 1 : 0)
         if (grad >= 3) svg.punkt(p.x, y, fa)
@@ -130,23 +183,92 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   for (const l of lagen.values()) {
     const n = l.n
     const eltern = n.eltern ? lagen.get(n.eltern) : undefined
-    // Zuleitungen
     for (const le of allp ? n.leiter : (['L1'] as LeiterName[])) {
       const xx = cx(l, le)
+      const fa = farbe(le)
+      if (!eltern && n.def.wurzel && allp && le === 'PE' && o.netz.form !== 'TN-S') continue // PE entsteht im HAK bzw. am Erder
+      if (l.kette) {
+        // Energiefluss von unten nach oben
+        if (!eltern) svg.linie(xx, l.symBot, xx, yNetz, { farbe: fa })
+        else {
+          const ex = allp && eltern.n.leiter.includes(le) ? cx(eltern, le) : xx
+          const ym = (eltern.symTop + l.symBot) / 2
+          svg.pfad(`M ${ex} ${eltern.symTop} V ${ym} H ${xx} V ${l.symBot}`, { farbe: fa })
+        }
+        continue
+      }
       let yStart: number
       if (eltern) yStart = eltern.busY[allp ? le : 'L1'] ?? l.symTop - 4
-      else yStart = OBEN - 2
-      if (!eltern && allp && le === 'PE' && o.netz.form !== 'TN-S') continue // PE entsteht im HAK bzw. am Erder
-      svg.linie(xx, yStart, xx, l.symTop, { farbe: farbe(le) })
+      else yStart = n.def.wurzel && !hager ? OBEN - 2 : l.symTop - 5
+      svg.linie(xx, yStart, xx, l.symTop, { farbe: fa })
     }
-    if (!eltern) einspeisung(svg, l, cx, o, allp, farbe)
-    else if (!allp) leiterZahl(svg, l, eltern)
+    if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
+    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
-    beschriftung(svg, l, allp, cx)
+    beschriftung(svg, l, allp, cx, hager && o.tabelle !== false)
   }
 
+  let hoehe = hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN
+  if (hager && o.tabelle !== false) {
+    const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined).sort((p, q) => p.slotX0! - q.slotX0!)
+    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12) + 4
+  }
   return { inhalt: svg.toString(), breite, hoehe }
+}
+
+function istNachfahr(n: Knoten, vorfahr: Knoten): boolean {
+  for (let k: Knoten | undefined = n; k; k = k.eltern) if (k === vorfahr) return true
+  return false
+}
+
+// ---------- Stromkreistabelle ----------
+
+function tabelle(svg: Svg, spalten: Lage[], x0: number, kopfEnde: number, y0: number): number {
+  const vorgeschaltet = (n: Knoten, pred: (k: Knoten) => boolean) => {
+    for (let k = n.eltern; k; k = k.eltern) if (pred(k)) return k
+    return undefined
+  }
+  const phasen = (n: Knoten) => (n.dc ? 'DC' : n.pole === 3 ? '3/N/PE' : `${n.phase}/N/PE`)
+  const zeilen: { titel: string; wert: (n: Knoten) => string; hoch?: boolean }[] = [
+    { titel: 'Stromkreis', wert: (n) => n.bmk },
+    { titel: 'Bezeichnung', wert: (n) => n.k.name ?? n.def.label, hoch: true },
+    { titel: 'Schutzorgan', wert: (n) => { const s = vorgeschaltet(n, (k) => ['ls', 'rcbo', 'sicherung'].includes(k.def.symbol)); return s ? `${s.bmk} ${s.def.kurz?.(s.k.params ?? {}) ?? ''}` : '' }, hoch: true },
+    { titel: 'FI-Schutz', wert: (n) => { const s = vorgeschaltet(n, (k) => ['rcd', 'rcbo'].includes(k.def.symbol)); const p = s?.k.params ?? {}; return s ? `${s.bmk} ${p.fehlerstrom ?? ''}mA ${p.rcdtyp ?? ''}` : '' }, hoch: true },
+    { titel: 'Anschluss', wert: phasen },
+    { titel: 'Kabeltyp', wert: (n) => n.k.kabel?.typ ?? '' },
+    { titel: 'Querschnitt', wert: (n) => (n.k.kabel?.querschnitt ? `${n.k.kabel.querschnitt} mm²` : '') },
+    { titel: 'Länge', wert: (n) => (n.k.kabel?.laenge ? `${n.k.kabel.laenge} m` : '') },
+    { titel: 'Kenndaten', wert: (n) => n.def.kurz?.(n.k.params ?? {}) ?? '', hoch: true },
+  ]
+  const x1 = Math.max(...spalten.map((s) => s.slotX0! + s.slotW!))
+  const gr = 1.8
+  let y = y0
+  svg.rechteck(x0, y0, x1 - x0, 0.01, { breite: 0.5, fuellung: 'none' })
+  for (const z of zeilen) {
+    const h = z.hoch ? 6.6 : 4.4
+    svg.linie(x0, y + h, x1, y + h, { breite: z === zeilen[zeilen.length - 1] ? 0.5 : 0.2 })
+    svg.text(x0 + 1.5, y + h / 2 + 0.7, z.titel, { groesse: gr, fett: true })
+    for (const s of spalten) {
+      const mx = s.slotX0! + s.slotW! / 2
+      const max = Math.max(6, Math.floor(s.slotW! / (gr * 0.52)))
+      const teile = z.hoch ? umbrechen(z.wert(s.n), max).slice(0, 2) : [kuerzen(z.wert(s.n), max)]
+      const start = y + h / 2 + 0.7 - ((teile.length - 1) * 2.2) / 2
+      teile.forEach((t, i) => svg.text(mx, start + i * 2.2, t, { groesse: gr, anker: 'middle', fett: z.titel === 'Stromkreis' }))
+    }
+    y += h
+  }
+  // Senkrechte Linien
+  svg.linie(x0, y0, x0, y, { breite: 0.5 })
+  svg.linie(kopfEnde, y0, kopfEnde, y, { breite: 0.35 })
+  const grenzen = new Set<number>()
+  spalten.forEach((s) => { grenzen.add(Math.round(s.slotX0! * 100) / 100); grenzen.add(Math.round((s.slotX0! + s.slotW!) * 100) / 100) })
+  for (const g of grenzen) if (g > kopfEnde + 0.5) svg.linie(g, y0, g, y, { breite: g >= x1 - 0.01 ? 0.5 : 0.2 })
+  return y
+}
+
+function kuerzen(s: string, max: number) {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s
 }
 
 function leiterZahl(svg: Svg, l: Lage, eltern: Lage) {
@@ -157,32 +279,37 @@ function leiterZahl(svg: Svg, l: Lage, eltern: Lage) {
   svg.text(l.x - 1.4, y + 0.4, n.dc ? '2' : String(n.leiter.length), { groesse: 1.8, anker: 'end' })
 }
 
-function einspeisung(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName) => number, o: PlanOptionen, allp: boolean, farbe: (l: LeiterName) => string) {
+function einspeisung(svg: Svg, l: Lage, cx: Cx, o: PlanOptionen, allp: boolean, farbe: (l: LeiterName) => string, yUnten?: number) {
   const netz = o.netz
-  const y = OBEN - 4
-  if (!allp) {
-    svg.text(l.x, y - 4, `${netz.form}  3/N/PE ~50 Hz`, { groesse: 2.4, anker: 'middle', fett: true })
-    if (netz.spannung) svg.text(l.x, y - 0.5, netz.spannung, { groesse: 2.2, anker: 'middle' })
-    return
-  }
-  for (const le of l.n.leiter) {
-    if (le === 'PE' && netz.form !== 'TN-S') continue
-    const label = le === 'N' && netz.form === 'TN-C-S' ? 'PEN' : le
-    svg.text(cx(l, le) + 0.7, y, label, { groesse: 1.8, drehung: -90, farbe: farbe(le) })
-  }
-  svg.text(l.x, y - 9.5, `${netz.form}${netz.spannung ? '  ' + netz.spannung : ''}`, { groesse: 2.4, anker: 'middle', fett: true })
+  const unten = yUnten !== undefined
   const xpe = cx(l, 'PE'), xn = cx(l, 'N')
+  if (!allp) {
+    const y = unten ? yUnten + 3.5 : OBEN - 8
+    svg.text(l.x - 3, y, `${netz.form}  3/N/PE ~50 Hz`, { groesse: 2.2, fett: true, anker: unten ? 'start' : 'middle' })
+    if (netz.spannung) svg.text(l.x - 3, y + 3, netz.spannung, { groesse: 2, anker: unten ? 'start' : 'middle' })
+    if (unten) svg.text(l.x - 3, y + 6, 'Netzanschluss', { groesse: 1.8, farbe: '#444' })
+  } else {
+    const y = unten ? yUnten + 1 : OBEN - 4
+    for (const le of l.n.leiter) {
+      if (le === 'PE' && netz.form !== 'TN-S') continue
+      const label = le === 'N' && netz.form === 'TN-C-S' ? 'PEN' : le
+      svg.text(cx(l, le) + 0.7, y, label, { groesse: 1.8, drehung: -90, farbe: farbe(le), anker: unten ? 'end' : 'start' })
+    }
+    if (unten) svg.text(xpe + 3, y + 3, `${netz.form}${netz.spannung ? '  ' + netz.spannung : ''}`, { groesse: 2.2, fett: true })
+    else svg.text(l.x, y - 9.5, `${netz.form}${netz.spannung ? '  ' + netz.spannung : ''}`, { groesse: 2.4, anker: 'middle', fett: true })
+  }
+  if (!allp) return
   if (netz.form === 'TN-C-S') {
-    // PEN-Aufteilung im HAK
-    const ys = l.symBot - 2
+    // PEN-Aufteilung im HAK (auf der Abgangsseite)
+    const ys = unten ? l.symTop + 2 : l.symBot - 2
     svg.linie(xn, ys, xpe, ys, { farbe: farbe('PE') })
-    svg.linie(xpe, ys, xpe, l.symBot, { farbe: farbe('PE') })
+    svg.linie(xpe, ys, xpe, unten ? l.symTop : l.symBot, { farbe: farbe('PE') })
     svg.punkt(xn, ys, farbe('PE'))
   } else if (netz.form === 'TT') {
-    const ye = l.symTop + 4
-    svg.linie(xpe, ye, xpe, l.symBot, { farbe: farbe('PE') })
-    erde(svg, xpe, ye, farbe('PE'), true)
-    svg.text(xpe + 2.5, ye - 1.5, 'Anlagenerder', { groesse: 1.6 })
+    const ye = unten ? l.symBot + 4 : l.symTop + 4
+    svg.linie(xpe, ye, xpe, unten ? l.symTop : l.symBot, { farbe: farbe('PE') })
+    erde(svg, xpe, ye, farbe('PE'), !unten)
+    svg.text(xpe + 2.5, unten ? ye + 1.5 : ye - 1.5, 'Anlagenerder', { groesse: 1.6 })
   }
 }
 
@@ -405,7 +532,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
   }
 }
 
-function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: (l: Lage, le: LeiterName) => number) {
+function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: Cx, mitTabelle: boolean) {
   const n = l.n
   const rechts = allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + (n.def.durchgang ? 3.5 : 4.5) : l.x + (n.def.durchgang ? 5.5 : 6.5)
   const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
@@ -419,7 +546,9 @@ function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: (l: Lage, le: Leiter
     }
   }
   const phasenText = n.dc ? 'DC' : n.pole === 3 ? '3/N/PE' : `${n.phase}/N/PE`
-  if (!n.kinder.length) {
+  if (!n.kinder.length && mitTabelle) {
+    // Angaben stehen in der Stromkreistabelle
+  } else if (!n.kinder.length) {
     // Endstromkreis: Name senkrecht unter dem Symbol
     const unten = l.symBot + (n.def.symbol === 'spd' ? 5 : 2)
     const text = [n.k.name ?? n.def.label, kabelText(n)].filter(Boolean)
@@ -433,7 +562,9 @@ function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: (l: Lage, le: Leiter
       }
     }
     const kt = kabelText(n)
-    if (kt) svg.text(l.x - (allp ? (n.leiter.length * D) / 2 + 1 : 1.5), l.symTop - 1, kt, { groesse: 1.7, anker: 'end', farbe: '#333' })
+    const links = l.x - (allp ? (n.leiter.length * D) / 2 + 1 : 1.5)
+    if (kt && l.kette) svg.text(links, l.symBot + 2, kt, { groesse: 1.7, anker: 'end', farbe: '#333', drehung: -90 })
+    else if (kt) svg.text(l.x - (allp ? (n.leiter.length * D) / 2 + 1 : 1.5), l.symTop - 1, kt, { groesse: 1.7, anker: 'end', farbe: '#333' })
   }
 }
 

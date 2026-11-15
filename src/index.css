@@ -110,3 +110,13 @@ input:focus, select:focus { outline: 2px solid var(--akzent-h); border-color: va
 .blatt { margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,.18); background: #fff; line-height: 0; }
 .blatt svg { display: block; }
 .eigenschaften input[type=checkbox] { width: auto; }
+
+/* Einklappen */
+.leiste-zu {
+  flex: none; width: 30px; border: none; border-radius: 0; background: #2b3344; color: #fff; padding: 0;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.leiste-zu:hover { background: var(--akzent) !important; }
+.leiste-zu span { writing-mode: vertical-rl; font-weight: 600; letter-spacing: .5px; }
+.tabs > button.einklappen { border-radius: 6px; border-bottom: 1px solid var(--rand); margin-bottom: 5px; font-size: 12px; padding: 3px 8px; background: #fff; }
+.plan-leiste .einklappen { font-size: 12px; padding: 4px 8px; }

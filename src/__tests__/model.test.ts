@@ -73,6 +73,10 @@ describe('Plan', () => {
       expect(plan.breite).toBeGreaterThan(100)
       expect(plan.inhalt).toContain('-F11')
       expect(plan.inhalt).not.toContain('NaN')
+      expect(plan.inhalt).toContain('Stromkreis')
+      const baum = zeichnePlan(a, { modus, farbig: true, netz: p.netz, anordnung: 'baum' })
+      expect(baum.inhalt).not.toContain('Stromkreis')
+      expect(baum.inhalt).not.toContain('NaN')
     }
   })
 })
