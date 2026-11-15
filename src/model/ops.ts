@@ -113,25 +113,37 @@ export function neuNummerieren(p: Projekt): Projekt {
 }
 
 /** Baum-Layout für den Node-Editor */
+/** Typen der Einspeisekette (HAK → … → Verteilung); im Editor immer ganz links. */
+const KETTE = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung', 'sammelschiene']
+
+/**
+ * Baum-Layout von links nach rechts: Eltern stehen über ihrem ersten Abgang.
+ * Unterbäume werden pro Ebene so weit links wie möglich eingepasst, damit die
+ * Geräte am Netzanschluss (SPD, Steuerbox, SMGW …) direkt neben dem Hauptstrang stehen.
+ */
 export function autoLayout(p: Projekt): Record<string, { x: number; y: number }> {
   const a = analysiere(p)
+  type K = (typeof a.wurzeln)[number]
   const pos: Record<string, { x: number; y: number }> = {}
   const BX = 210, BY = 130
-  let blatt = 0
-  const setze = (n: (typeof a.wurzeln)[number]): number => {
-    if (!n.kinder.length) {
-      const x = blatt++ * BX
-      pos[n.k.id] = { x, y: n.tiefe * BY }
-      return x
+  const frei: number[] = []
+  const istKette = (n: K) => KETTE.includes(n.k.typ) && n.kinder.length > 0
+  const setze = (n: K, min: number): number => {
+    min = Math.max(min, frei[n.tiefe] ?? 0)
+    let x = min
+    if (n.kinder.length) {
+      const kinder = [...n.kinder.filter(istKette), ...n.kinder.filter((c) => !istKette(c))]
+      x = setze(kinder[0], min)
+      kinder.slice(1).forEach((c) => setze(c, x))
     }
-    const xs = n.kinder.map(setze)
-    const x = xs[0] // linksbündig: Eltern über dem ersten Kind, Aufbau von links nach rechts
-    pos[n.k.id] = { x, y: n.tiefe * BY }
+    pos[n.k.id] = { x: x * BX, y: n.tiefe * BY }
+    frei[n.tiefe] = x + 1
     return x
   }
+  let start = 0
   a.wurzeln.forEach((w) => {
-    setze(w)
-    blatt += 0.5
+    setze(w, start)
+    start = Math.max(0, ...Array.from(frei, (f) => f ?? 0)) + 0.5
   })
   return pos
 }
