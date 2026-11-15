@@ -3,7 +3,7 @@ import type { ParamWert } from './types'
 export type SymbolArt =
   | 'hak' | 'zaehler' | 'sls' | 'trenner' | 'sicherung' | 'ls' | 'rcd' | 'rcbo' | 'spd'
   | 'wechselrichter' | 'pvgen' | 'speicher' | 'wallbox' | 'waermepumpe' | 'verbraucher'
-  | 'steuerbox' | 'verteiler'
+  | 'steuerbox' | 'smgw' | 'verteiler'
 
 export interface ParamDef {
   key: string
@@ -172,8 +172,14 @@ export const BIBLIOTHEK: TypDef[] = [
   {
     typ: 'steuerbox', label: 'Steuerbox / Steuergerät', kategorie: 'Sonstiges', bmk: 'K', farbe: '#64748b',
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'steuerbox',
-    params: [{ key: 'art', label: 'Art', art: 'auswahl', optionen: ['FNN-Steuerbox', 'Rundsteuerempfänger', 'Smart-Meter-Gateway'], standard: 'FNN-Steuerbox' }],
+    params: [{ key: 'art', label: 'Art', art: 'auswahl', optionen: ['FNN-Steuerbox', 'Rundsteuerempfänger'], standard: 'FNN-Steuerbox' }],
     kurz: (p) => n(p.art),
+  },
+  {
+    typ: 'smgw', label: 'Smart-Meter-Gateway', kategorie: 'Sonstiges', bmk: 'K', farbe: '#475569',
+    pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'smgw',
+    params: [{ key: 'hersteller', label: 'Hersteller/Typ', art: 'text', standard: '' }],
+    kurz: (p) => n(p.hersteller) || 'SMGW',
   },
   {
     typ: 'unterverteilung', label: 'Unterverteilung', kategorie: 'Sonstiges', bmk: 'W', farbe: '#334155',

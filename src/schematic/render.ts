@@ -41,6 +41,8 @@ interface Lage {
   busY: Partial<Record<LeiterName, number>>
   /** Teil der Einspeisekette (Energiefluss von unten nach oben) */
   kette: boolean
+  /** Abzweig aus der Einspeisekette (z.B. ungezählter Bereich), nach oben gezeichnet */
+  aufwaerts?: boolean
   /** Spaltenbereich bei Endstromkreisen */
   slotX0?: number
   slotW?: number
@@ -76,16 +78,28 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   if (hauptWurzel) {
     let k = hauptWurzel
     kette.push(k)
-    while (k.kinder.length === 1 && k.def.durchgang && k.kinder[0].def.durchgang) {
-      k = k.kinder[0]
+    for (;;) {
+      const naechster = hauptstrang(k)
+      if (!naechster) break
+      k = naechster
       kette.push(k)
     }
   }
   const inKette = new Set(kette)
+  // Abzweige aus der Kette vor dem Kopf (z.B. SPD, Steuerbox im ungezählten Bereich)
+  const seitenWurzeln: { k: number; n: Knoten }[] = []
+  kette.slice(0, -1).forEach((kn, i) => kn.kinder.filter((c) => !inKette.has(c)).forEach((c) => seitenWurzeln.push({ k: i, n: c })))
+  const seite = new Set<Knoten>()
+  const sammle = (n: Knoten) => { seite.add(n); n.kinder.forEach(sammle) }
+  seitenWurzeln.forEach((s) => sammle(s.n))
+  const hoehe0 = (n: Knoten): number => (n.kinder.length ? 1 + Math.max(...n.kinder.map(hoehe0)) : 0)
+  const seitenBedarf = seitenWurzeln.length ? Math.max(...seitenWurzeln.map((s) => s.k + hoehe0(s.n) + 2)) : 0
+
   const relTiefe = (n: Knoten) => n.tiefe - (hauptWurzel && istNachfahr(n, hauptWurzel) ? kette.length : 0)
-  const baumKnoten = alle.filter((n) => !inKette.has(n))
+  const baumKnoten = alle.filter((n) => !inKette.has(n) && !seite.has(n))
   const maxRel = baumKnoten.length ? Math.max(...baumKnoten.map(relTiefe)) : -1
-  const zeilen = Math.max(maxRel + 1, kette.length)
+  const zeilen = Math.max(maxRel + 1, kette.length, seitenBedarf)
+  const abzweigAbstand = allp ? 12 : 7
 
   const busTop = 8
   const busBand = allp ? 5 * BUS_ABSTAND : 0
@@ -125,16 +139,39 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     return summe
   }
 
+  const platziereSeite = (n: Knoten, x0: number, basis: number, ebene: number): number => {
+    const symBot = basis - ebene * H
+    const l: Lage = { n, x: 0, symTop: symBot - SYM_H, symBot, aus: ausgaenge(n), busY: {}, kette: false, aufwaerts: true }
+    lagen.set(n, l)
+    const eigen = eigeneBreite(n)
+    if (!n.kinder.length) {
+      l.x = x0 + eigen / 2
+      l.slotX0 = x0
+      l.slotW = eigen
+      return eigen
+    }
+    let x = x0
+    for (const c of n.kinder) x += platziereSeite(c, x, basis, ebene + 1)
+    const summe = Math.max(x - x0, eigen)
+    const erst = lagen.get(n.kinder[0])!.x
+    const letzt = lagen.get(n.kinder[n.kinder.length - 1])!.x
+    l.x = n.kinder.length === 1 ? erst : (erst + letzt) / 2
+    return summe
+  }
+
   let x = 6
   let kopfBreite = 0
+  let trennX: number | undefined
   if (kette.length) {
-    kopfBreite = allp ? 46 : 40
+    kopfBreite = allp ? 46 : 44
     const kx = 6 + (allp ? 12 : 8)
     kette.forEach((k, i) => {
       const symTop = symTopZeile(zeilen - 1 - i)
       lagen.set(k, { n: k, x: kx, symTop, symBot: symTop + SYM_H, aus: ausgaenge(k), busY: {}, kette: true })
     })
     x = 6 + kopfBreite
+    for (const s of seitenWurzeln) x += platziereSeite(s.n, x, lagen.get(kette[s.k])!.symTop - abzweigAbstand, 0)
+    if (seitenWurzeln.length) trennX = x
     for (const c of kette[kette.length - 1].kinder) x += platziere(c, x)
     x += 6
   }
@@ -154,26 +191,32 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     if (!kinder.length) continue
     const ausListe = allp ? l.aus : (['L1'] as LeiterName[])
     const benutzt = ausListe.filter((le) => !allp || kinder.some((k) => k.n.leiter.includes(le)))
+    const istKopf = l.kette && l.n === kette[kette.length - 1]
+    const istAbzweig = l.kette && !istKopf
     benutzt.forEach((le, i) => {
-      // Kopf der Einspeisekette: Sammelschiene oben, Leitung von unten kommend
-      const y = l.kette ? busTop + ausListe.indexOf(le) * BUS_ABSTAND : l.symBot + 4 + (allp ? i * BUS_ABSTAND : 0)
+      const iv = ausListe.indexOf(le)
+      let y: number
+      if (istKopf) y = busTop + iv * BUS_ABSTAND // Sammelschiene oben, Leitung von unten kommend
+      else if (istAbzweig) y = l.symTop - (allp ? 1.5 + (ausListe.length - 1 - iv) * 1.8 : 3) // Abgriff an der Einspeisung
+      else if (l.aufwaerts) y = l.symTop - 4 - (allp ? (benutzt.length - 1 - i) * BUS_ABSTAND : 0)
+      else y = l.symBot + 4 + (allp ? i * BUS_ABSTAND : 0)
       l.busY[le] = y
       const px = cx(l, le, ausListe)
-      const punkte: { x: number; hoch: boolean; runter: boolean }[] = [{ x: px, hoch: !l.kette, runter: l.kette }]
+      const punkte: { x: number; senk: number }[] = [{ x: px, senk: istAbzweig ? 2 : 1 }]
       for (const k of kinder) {
         if (allp && !k.n.leiter.includes(le)) continue
         const kx = allp ? cx(k, le) : k.x
         const p = punkte.find((pp) => Math.abs(pp.x - kx) < 0.01)
-        if (p) p.runter = true
-        else punkte.push({ x: kx, hoch: false, runter: true })
+        if (p) p.senk++
+        else punkte.push({ x: kx, senk: 1 })
       }
       const xs = punkte.map((p) => p.x)
       const min = Math.min(...xs), max = Math.max(...xs)
       const fa = farbe(le)
-      svg.linie(px, l.kette ? l.symTop : l.symBot, px, y, { farbe: fa })
-      if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa, breite: l.kette ? 0.5 : 0.35 })
+      if (!istAbzweig) svg.linie(px, l.kette || l.aufwaerts ? l.symTop : l.symBot, px, y, { farbe: fa })
+      if (max - min > 0.01) svg.linie(min, y, max, y, { farbe: fa, breite: istKopf ? 0.5 : 0.35 })
       for (const p of punkte) {
-        const grad = (p.hoch ? 1 : 0) + (p.runter ? 1 : 0) + (p.x > min + 0.01 ? 1 : 0) + (p.x < max - 0.01 ? 1 : 0)
+        const grad = p.senk + (p.x > min + 0.01 ? 1 : 0) + (p.x < max - 0.01 ? 1 : 0)
         if (grad >= 3) svg.punkt(p.x, y, fa)
       }
     })
@@ -200,7 +243,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       let yStart: number
       if (eltern) yStart = eltern.busY[allp ? le : 'L1'] ?? l.symTop - 4
       else yStart = n.def.wurzel && !hager ? OBEN - 2 : l.symTop - 5
-      svg.linie(xx, yStart, xx, l.symTop, { farbe: fa })
+      svg.linie(xx, yStart, xx, l.aufwaerts ? l.symBot : l.symTop, { farbe: fa })
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern)
@@ -212,9 +255,19 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   let hoehe = hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN
   if (hager && o.tabelle !== false) {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined).sort((p, q) => p.slotX0! - q.slotX0!)
-    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12) + 4
+    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12, trennX) + 4
   }
   return { inhalt: svg.toString(), breite, hoehe }
+}
+
+/** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
+const HAUPTSTRANG = ['zaehler', 'sls', 'trennschalter', 'sicherung']
+
+function hauptstrang(k: Knoten): Knoten | undefined {
+  if (!k.def.durchgang) return undefined
+  if (k.kinder.length === 1) return k.kinder[0].def.durchgang ? k.kinder[0] : undefined
+  const kandidaten = k.kinder.filter((c) => HAUPTSTRANG.includes(c.k.typ))
+  return kandidaten.length === 1 ? kandidaten[0] : undefined
 }
 
 function istNachfahr(n: Knoten, vorfahr: Knoten): boolean {
@@ -224,7 +277,7 @@ function istNachfahr(n: Knoten, vorfahr: Knoten): boolean {
 
 // ---------- Stromkreistabelle ----------
 
-function tabelle(svg: Svg, spalten: Lage[], x0: number, kopfEnde: number, y0: number): number {
+function tabelle(svg: Svg, spalten: Lage[], x0: number, kopfEnde: number, y0: number, trennX?: number): number {
   const vorgeschaltet = (n: Knoten, pred: (k: Knoten) => boolean) => {
     for (let k = n.eltern; k; k = k.eltern) if (pred(k)) return k
     return undefined
@@ -264,6 +317,7 @@ function tabelle(svg: Svg, spalten: Lage[], x0: number, kopfEnde: number, y0: nu
   const grenzen = new Set<number>()
   spalten.forEach((s) => { grenzen.add(Math.round(s.slotX0! * 100) / 100); grenzen.add(Math.round((s.slotX0! + s.slotW!) * 100) / 100) })
   for (const g of grenzen) if (g > kopfEnde + 0.5) svg.linie(g, y0, g, y, { breite: g >= x1 - 0.01 ? 0.5 : 0.2 })
+  if (trennX !== undefined && trennX < x1 - 0.5) svg.linie(trennX, y0, trennX, y, { breite: 0.5 })
   return y
 }
 
@@ -274,7 +328,7 @@ function kuerzen(s: string, max: number) {
 function leiterZahl(svg: Svg, l: Lage, eltern: Lage) {
   const n = l.n
   if (n.kinder.length && eltern.n.leiter.length === n.leiter.length) return
-  const y = l.symTop - 2.5
+  const y = l.aufwaerts ? l.symBot + 2.5 : l.symTop - 2.5
   svg.linie(l.x - 1.1, y + 1.1, l.x + 1.1, y - 1.1)
   svg.text(l.x - 1.4, y + 0.4, n.dc ? '2' : String(n.leiter.length), { groesse: 1.8, anker: 'end' })
 }
@@ -379,6 +433,9 @@ function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, 
     case 'steuerbox':
       t('SB', 2.2)
       break
+    case 'smgw':
+      t('SMGW', 1.9)
+      break
     case 'spd':
       // Varistor-Symbol
       svg.rechteck(mx - 1.2, y0 + 1.5, 2.4, h - 3, { fuellung: '#fff' })
@@ -439,13 +496,14 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       break
     default: {
       const w = 10, h = 10, bt = y0 + 2
-      verbindung(y0, bt)
-      if (mitKindern) verbindung(bt + h, y1)
+      if (l.aufwaerts) verbindung(bt + h, y1)
+      else verbindung(y0, bt)
+      if (mitKindern) l.aufwaerts ? verbindung(y0, bt) : verbindung(bt + h, y1)
       svg.rechteck(x - w / 2, bt, w, h)
       boxInhalt(svg, art, x - w / 2, bt, w, h)
       if (art === 'spd') {
-        verbindung(bt + h, bt + h + 2)
-        erde(svg, x, bt + h + 2)
+        if (l.aufwaerts) { verbindung(bt - 2, bt); erde(svg, x, bt - 2, '#000', true) }
+        else { verbindung(bt + h, bt + h + 2); erde(svg, x, bt + h + 2) }
       }
     }
   }
@@ -464,13 +522,14 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     const bt = y0 + 1.5, h = 11
     const w = Math.max(12, xmax - xmin + 6)
     const bx = l.x - w / 2
-    for (const le of n.leiter) svg.linie(cx(l, le), y0, cx(l, le), bt, { farbe: farbe(le) })
-    if (n.kinder.length) for (const le of l.aus) svg.linie(cx(l, le, l.aus), bt + h, cx(l, le, l.aus), y1, { farbe: farbe(le) })
+    const auf = !!l.aufwaerts
+    for (const le of n.leiter) svg.linie(cx(l, le), auf ? bt + h : y0, cx(l, le), auf ? y1 : bt, { farbe: farbe(le) })
+    if (n.kinder.length) for (const le of l.aus) svg.linie(cx(l, le, l.aus), auf ? y0 : bt + h, cx(l, le, l.aus), auf ? bt : y1, { farbe: farbe(le) })
     svg.rechteck(bx, bt, w, h)
     boxInhalt(svg, art, bx, bt, w, h)
     if (art === 'spd') {
-      svg.linie(l.x, bt + h, l.x, bt + h + 2)
-      erde(svg, l.x, bt + h + 2)
+      if (auf) { svg.linie(l.x, bt - 2, l.x, bt); erde(svg, l.x, bt - 2, '#000', true) }
+      else { svg.linie(l.x, bt + h, l.x, bt + h + 2); erde(svg, l.x, bt + h + 2) }
     }
     return
   }

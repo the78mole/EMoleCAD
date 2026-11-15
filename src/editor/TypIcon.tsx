@@ -31,7 +31,7 @@ export function TypIcon({ art, groesse = 18 }: { art: SymbolArt; groesse?: numbe
       inhalt = <><rect x="2" y="3" width="16" height="14" {...s} strokeDasharray="2 1.5" /><text x="10" y="13" fontSize="6.5" textAnchor="middle" fill="currentColor" fontWeight="bold">UV</text></>
       break
     default: {
-      const t = { wallbox: 'EV', waermepumpe: 'WP', steuerbox: 'SB' }[art as string]
+      const t = { wallbox: 'EV', waermepumpe: 'WP', steuerbox: 'SB', smgw: 'GW' }[art as string]
       inhalt = <><rect x="2" y="3" width="16" height="14" {...s} />{t ? <text x="10" y="13" fontSize="6.5" textAnchor="middle" fill="currentColor" fontWeight="bold">{t}</text> : <><line x1="6" y1="6" x2="14" y2="14" {...s} /><line x1="6" y1="14" x2="14" y2="6" {...s} /></>}</>
     }
   }

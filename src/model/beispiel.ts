@@ -16,6 +16,27 @@ komponenten:
     typ: hausanschluss
     name: HAK
     params: { sicherung: 63, sicherungstyp: NH00 gG, netzbetreiber: Stadtwerke }
+  # Ungezählter Bereich: parallel zwischen HAK und Zähler
+  - id: F1
+    typ: spd
+    name: Überspannungsschutz
+    quelle: X1
+    params: { spdtyp: 1+2 }
+  - id: F11
+    typ: ls
+    name: Vorzählerbereich
+    quelle: X1
+    phase: L1
+    params: { charakteristik: B, nennstrom: 6 }
+  - id: K1
+    typ: steuerbox
+    name: Steuerbox
+    quelle: F11
+    params: { art: FNN-Steuerbox }
+  - id: K2
+    typ: smgw
+    name: Smart-Meter-Gateway
+    quelle: F11
   - id: P1
     typ: zaehler
     name: Zweirichtungszähler
@@ -26,10 +47,6 @@ komponenten:
     typ: sls
     quelle: P1
     params: { nennstrom: 50 }
-  - id: F1
-    typ: spd
-    quelle: Q1
-    params: { spdtyp: 1+2 }
   - id: F2
     typ: rcd
     name: RCD Allgemein
@@ -128,14 +145,4 @@ komponenten:
     quelle: F10
     kabel: { typ: NYM-J, querschnitt: "5x2,5" }
     params: { leistung: 4, steuerbar: true }
-  - id: F11
-    typ: ls
-    quelle: Q1
-    phase: L1
-    params: { charakteristik: B, nennstrom: 6 }
-  - id: K1
-    typ: steuerbox
-    name: Steuerbox
-    quelle: F11
-    params: { art: FNN-Steuerbox }
 `
