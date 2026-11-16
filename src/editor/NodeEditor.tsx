@@ -6,6 +6,7 @@ import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import { typDef } from '../model/library'
+import { handleIds, seitenWahl } from './seiten'
 import { autoLayout, neuNummerieren, datenTrennen, datenVerbinden, entfernen, hinzufuegen, istVorfahr, paTrennen, paVerbinden, setzeQuelle } from '../model/ops'
 import type { Projekt } from '../model/types'
 import { Bibliothek } from './Bibliothek'
@@ -57,7 +58,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
   // oxlint-disable-next-line react/set-state-in-effect -- bewusste Synchronisation Modell -> kontrollierter React-Flow-Zustand
   useEffect(() => setNodes(sollNodes), [sollNodes])
 
-  const edges = useMemo<Edge[]>(() => {
+  const grundKanten = useMemo<Edge[]>(() => {
     const posVon = (id: string) => (projekt.editor?.[id] ?? autoPos[id] ?? { x: 0, y: 0 }).x
     const kinderVon = new Map<string, string[]>()
     for (const k of projekt.komponenten) if (k.quelle) kinderVon.set(k.quelle, [...(kinderVon.get(k.quelle) ?? []), k.id])
@@ -113,6 +114,18 @@ function Innen({ projekt, analyse, onChange }: Props) {
             })),
         )
   }, [projekt, analyse, autoPos])
+
+  // Hilfsleitungen (PE, Daten) setzen an der Seite an, die zum Gegenüber zeigt – live auch beim Ziehen
+  const edges = useMemo<Edge[]>(() => {
+    const box = new Map(nodes.map((n) => [n.id, { x: n.position.x, w: n.measured?.width ?? 170 }]))
+    return grundKanten.map((e) => {
+      const art = e.id.startsWith('pa:') ? 'pa' : e.id.startsWith('daten:') ? 'daten' : undefined
+      const a = box.get(e.source), b = box.get(e.target)
+      if (!art || !a || !b) return e
+      const h = handleIds(art, seitenWahl(a, b))
+      return { ...e, sourceHandle: e.sourceHandle ? h.sourceHandle : undefined, targetHandle: e.targetHandle ? h.targetHandle : undefined }
+    })
+  }, [grundKanten, nodes])
 
   // Ref, damit Callbacks immer den aktuellen Stand sehen
   const pRef = useRef(projekt)
