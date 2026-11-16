@@ -23,6 +23,11 @@ export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp
       {def.pa && <Handle type="source" id="pa-out" position={Position.Right} className="pa-handle" title="Potentialausgleich ziehen" />}
       {def.daten && <Handle type="target" id="daten-in" position={Position.Left} className="daten-handle" title="Datenverbindung (Eingang)" />}
       {def.daten && <Handle type="source" id="daten-out" position={Position.Right} className="daten-handle" title="Datenverbindung ziehen" />}
+      {/* verdeckte Gegenstücke, damit Hilfsleitungen an der jeweils günstigeren Seite ansetzen können */}
+      {def.pa && <Handle type="source" id="pa-out-l" position={Position.Left} className="pa-handle verdeckt" isConnectable={false} />}
+      {def.pa && <Handle type="target" id="pa-in-r" position={Position.Right} className="pa-handle verdeckt" isConnectable={false} />}
+      {def.daten && <Handle type="source" id="daten-out-l" position={Position.Left} className="daten-handle verdeckt" isConnectable={false} />}
+      {def.daten && <Handle type="target" id="daten-in-r" position={Position.Right} className="daten-handle verdeckt" isConnectable={false} />}
       <div className="kn-kopf">
         <TypIcon art={def.symbol} />
         <span>{def.label}</span>
