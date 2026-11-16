@@ -148,7 +148,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   // Steuerleitungen, die über den Kanal unter den Endverbrauchern geführt werden
   const kanalVerb = new Set<Datenverbindung>()
   const kanalAnz = new Map<Knoten, number>()
-  for (const d of o.daten ?? []) {
+  // nur in der Hager-Anordnung, wo Einspeisekette und ungezählter Bereich bekannt sind
+  for (const d of kette.length ? (o.daten ?? []) : []) {
     const p = a.knoten.get(d.von), q = a.knoten.get(d.nach)
     if (!p || !q || p === q || fremd(d.von) || fremd(d.nach) || p.def.potential || q.def.potential) continue
     if (inKette.has(p) || inKette.has(q)) continue
@@ -577,6 +578,8 @@ function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], 
   const spurY = (d: Datenverbindung) => k.y0 + spur.get(d)! * KANAL_SPUR
   // Reihenfolge der Abgänge je Gerät: nach links laufende innen liegend links, nach rechts laufende
   // mit der tiefsten Spur links, so liegt keine Senkrechte über einer fremden Waagerechten
+  // Schlüssel je Verbindung (Index) und Gerät, damit doppelte Verbindungen getrennt bleiben
+  const nr = new Map(verb.map((v, i) => [v, i]))
   const ende = new Map<string, { x: number; y: number; pfad: number[][] }>()
   const geraete = new Set(verb.flatMap((v) => [v.a, v.b]))
   for (const l of geraete) {
@@ -601,14 +604,14 @@ function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], 
         const sy = g.oben - 1.2 - i * 1.2
         pfad = [[ax, g.oben], [ax, sy], [dx, sy], [dx, y]]
       }
-      ende.set(`${e.v.d.von}>${e.v.d.nach}:${l.n.k.id}`, { x: pfad[pfad.length - 1][0], y, pfad })
+      ende.set(`${nr.get(e.v)}:${l.n.k.id}`, { x: pfad[pfad.length - 1][0], y, pfad })
     })
   }
   let rechts = 0
   let unten = 0
   for (const v of verb) {
-    const p = ende.get(`${v.d.von}>${v.d.nach}:${v.a.n.k.id}`)!
-    const q = ende.get(`${v.d.von}>${v.d.nach}:${v.b.n.k.id}`)!
+    const p = ende.get(`${nr.get(v)}:${v.a.n.k.id}`)!
+    const q = ende.get(`${nr.get(v)}:${v.b.n.k.id}`)!
     const pkt = [...p.pfad, ...[...q.pfad].reverse()]
     svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), stil)
     for (const e of [p.pfad[0], q.pfad[0]]) svg.kreis(e[0], e[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })

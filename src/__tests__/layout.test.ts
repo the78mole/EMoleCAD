@@ -45,6 +45,16 @@ describe('Steuerleitungen', () => {
         expect(Math.abs(x0 - x1) < 0.01 || Math.abs(y0 - y1) < 0.01).toBe(true)
       }
     }
+    // Endpunkte: Anfang an der Steuerbox (oben am Kasten), Ende an den Zielgeräten
+    const xVon = (bmk: string) => Number(svg.match(new RegExp(`<text x="([\\d.-]+)" y="[\\d.-]+"[^>]*>${bmk}</text>`))![1])
+    const ziele = ['-TB1', '-XD6', '-CC1', '-EG1', '-FB1'].map(xVon)
+    for (const pk of kanal) {
+      const [ax] = pk[0], [bx] = pk[pk.length - 1]
+      // Beschriftung steht rechts neben dem Gerät: Anschluss liegt kurz links davon
+      expect(Math.abs(ax - xVon('-KE2')) < 8 || Math.abs(bx - xVon('-KE2')) < 8).toBe(true)
+      const andere = Math.abs(ax - xVon('-KE2')) < 8 ? bx : ax
+      expect(ziele.some((z) => Math.abs(andere - z) < 8)).toBe(true)
+    }
     // jede Leitung hat ihre eigene Spur
     const spuren = kanal.map((pk) => Math.max(...pk.map(([, y]) => y)))
     expect(new Set(spuren).size).toBe(5)
