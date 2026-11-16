@@ -40,6 +40,9 @@ const SYM_H = 14
 const OBEN = 16 // Platz für Einspeisungsbeschriftung (Baum)
 const BESCHRIFTUNG_UNTEN = 42
 const BUS_ABSTAND = 2.6
+/** Steuerleitungskanal: Abstand paralleler Leitungen, Spurabstand im Kanal */
+const KANAL_ABSTAND = 1.5
+const KANAL_SPUR = 2.4
 
 const LEITERFARBE: Record<LeiterName, string> = {
   L1: '#7a4a1e', L2: '#111111', L3: '#7d7d7d', N: '#1f6fd1', PE: '#2e9e3e', 'L+': '#c62828', 'L-': '#1f3fa8',
@@ -63,6 +66,11 @@ interface Lage {
   busMax?: number
   /** Am Potentialausgleich angeschlossen (Erdungssymbol entfällt beim SPD) */
   pa?: boolean
+  /** Abgang aus der Einspeisekette, der nach unten aufgebaut wird: Steigleitung links
+   *  vom Abgang (x) hoch zur Speiseleitung (y je Leiter) */
+  steig?: { x: number; y: Partial<Record<LeiterName, number>> }
+  /** Senkrechte Gasse rechts neben dem Teilbaum für Steuerleitungen in den Kanal */
+  kanalX?: number
 }
 
 type Cx = (l: Lage, le: LeiterName, liste?: LeiterName[]) => number
@@ -102,30 +110,67 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const kette: Knoten[] = hauptWurzel ? einspeiseKette(hauptWurzel) : []
   const inKette = new Set(kette)
   // Abzweige aus der Kette vor dem Kopf (z.B. SPD, Steuerbox im ungezählten Bereich)
-  const seitenWurzeln: { k: number; n: Knoten }[] = []
-  kette.slice(0, -1).forEach((kn, i) => kn.kinder.filter((c) => !inKette.has(c)).forEach((c) => seitenWurzeln.push({ k: i, n: c })))
-  // Verweise auf andere Blätter hinter die Geräte des ungezählten Bereichs, damit diese zusammen bleiben
-  seitenWurzeln.sort((p, q) => Number(fremd(p.n.k.id)) - Number(fremd(q.n.k.id)))
-  const seite = new Set<Knoten>()
-  const sammle = (n: Knoten) => { seite.add(n); n.kinder.forEach(sammle) }
-  seitenWurzeln.forEach((s) => sammle(s.n))
+  // Abzweige hinter dem (ersten) Zähler sind Verteilerstränge: Sie werden wie die Hauptverteilung
+  // von oben nach unten aufgebaut (Schutzorgane oben, Endverbraucher unten über der Tabelle).
+  // Der ungezählte Bereich (SPD, SMGW, Steuerbox) bleibt kompakt an der Einspeisung.
+  const zaehlerIdx = kette.findIndex((k) => k.k.typ === 'zaehler')
+  const seitenWurzeln: { k: number; n: Knoten; ab: boolean }[] = []
+  kette.slice(0, -1).forEach((kn, i) => kn.kinder.filter((c) => !inKette.has(c)).forEach((c) => seitenWurzeln.push({ k: i, n: c, ab: zaehlerIdx >= 0 && i >= zaehlerIdx && !fremd(c.k.id) })))
+  // Verweise auf andere Blätter hinter die Geräte des ungezählten Bereichs, damit diese zusammen bleiben;
+  // nach unten aufgebaute Verteilerstränge danach
+  const rang = (s: { n: Knoten; ab: boolean }) => (s.ab ? 2 : fremd(s.n.k.id) ? 1 : 0)
+  seitenWurzeln.sort((p, q) => rang(p) - rang(q))
+  const seiteAuf = new Set<Knoten>()
+  const seiteAb = new Map<Knoten, number>() // Knoten -> Zeile (Ebene ab Strangwurzel)
+  const sammle = (n: Knoten) => { seiteAuf.add(n); n.kinder.forEach(sammle) }
+  const sammleAb = (n: Knoten, e: number) => { seiteAb.set(n, e); n.kinder.forEach((c) => sammleAb(c, e + 1)) }
+  seitenWurzeln.forEach((s) => (s.ab ? sammleAb(s.n, 0) : sammle(s.n)))
   const hoehe0 = (n: Knoten): number => (n.kinder.length ? 1 + Math.max(...n.kinder.map(hoehe0)) : 0)
-  const seitenBedarf = seitenWurzeln.length ? Math.max(...seitenWurzeln.map((s) => s.k + hoehe0(s.n) + 2)) : 0
+  const auf = seitenWurzeln.filter((s) => !s.ab)
+  const seitenBedarf = auf.length ? Math.max(...auf.map((s) => s.k + hoehe0(s.n) + 2)) : 0
+  const abBedarf = Math.max(0, ...seitenWurzeln.filter((s) => s.ab).map((s) => hoehe0(s.n) + 1))
 
   const relTiefe = (n: Knoten) => n.tiefe - (hauptWurzel && istNachfahr(n, hauptWurzel) ? kette.length : 0)
-  const baumKnoten = alle.filter((n) => !inKette.has(n) && !seite.has(n))
+  const baumKnoten = alle.filter((n) => !inKette.has(n) && !seiteAuf.has(n) && !seiteAb.has(n))
   const maxRel = baumKnoten.length ? Math.max(...baumKnoten.map(relTiefe)) : -1
-  const zeilen = Math.max(maxRel + 1, kette.length, seitenBedarf)
+  const zeilen = Math.max(maxRel + 1, kette.length, seitenBedarf, abBedarf)
   const abzweigAbstand = allp ? 12 : 10
 
   const busTop = 8
   const busBand = allp ? 5 * BUS_ABSTAND : 0
-  const rowTop0 = hager ? busTop + busBand + 6 : OBEN
+  const hatAb = seitenWurzeln.some((s) => s.ab)
+  // allpolig: eigenes Band für die Speiseleitungen der nach unten aufgebauten Abzweige
+  const abBand = hatAb && allp ? 5 * BUS_ABSTAND + 2 : 0
+  const rowTop0 = hager ? busTop + busBand + 6 + abBand : OBEN
   const symTopZeile = (z: number) => rowTop0 + z * H + (hager ? 3 : 7)
+  const speiseY = (iv: number) => (allp ? busTop + busBand + 4 + iv * BUS_ABSTAND : symTopZeile(0) - 5)
+
+  // Steuerleitungen, die über den Kanal unter den Endverbrauchern geführt werden
+  const kanalVerb = new Set<Datenverbindung>()
+  const kanalAnz = new Map<Knoten, number>()
+  for (const d of o.daten ?? []) {
+    const p = a.knoten.get(d.von), q = a.knoten.get(d.nach)
+    if (!p || !q || p === q || fremd(d.von) || fremd(d.nach) || p.def.potential || q.def.potential) continue
+    if (inKette.has(p) || inKette.has(q)) continue
+    // beide im ungezählten Bereich: kurze direkte Verbindung
+    if (seiteAuf.has(p) && seiteAuf.has(q)) continue
+    kanalVerb.add(d)
+    for (const n of [p, q]) if (n.kinder.length || seiteAuf.has(n)) kanalAnz.set(n, (kanalAnz.get(n) ?? 0) + 1)
+  }
+  // Gasse für die senkrechten Steuerleitungen rechts neben dem Teilbaum
+  const gasse = (n: Knoten) => kanalAnz.has(n)
+  /** Verbreitert den Tabellenplatz des Endstromkreises an der rechten (bzw. linken) Kante eines Teilbaums */
+  const verbreitere = (n: Knoten, kante: number, um: number, links = false) => {
+    for (const l of lagen.values()) {
+      if (l.slotW === undefined || !istNachfahr(l.n, n)) continue
+      if (!links && Math.abs(l.slotX0! + l.slotW - kante) < 0.01) { l.slotW += um; return }
+      if (links && Math.abs(l.slotX0! - kante) < 0.01) { l.slotX0 = kante - um; l.slotW += um; return }
+    }
+  }
 
   const lagen = new Map<Knoten, Lage>()
   const platziere = (n: Knoten, x0: number): number => {
-    const zeile = n.kinder.length ? relTiefe(n) : zeilen - 1
+    const zeile = n.kinder.length ? (seiteAb.get(n) ?? relTiefe(n)) : zeilen - 1
     const symTop = symTopZeile(zeile)
     const l: Lage = { n, x: 0, symTop, symBot: symTop + SYM_H, aus: ausgaenge(n), busY: {}, kette: false }
     lagen.set(n, l)
@@ -134,14 +179,33 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       l.x = x0 + eigen / 2
       l.slotX0 = x0
       l.slotW = eigen
-      return eigen
+      return eigen + mitGasse(l, x0 + eigen)
     }
     let x = x0
     for (const c of n.kinder) x += platziere(c, x)
     const summe = Math.max(x - x0, eigen)
     // linksbündig: Gerät steht über seinem ersten Abgang
     l.x = lagen.get(n.kinder[0])!.x
-    return summe
+    return summe + mitGasse(l, x0 + summe)
+  }
+  /** Reserviert die Steuerleitungsgasse rechts vom Teilbaum; gibt ihre Breite zurück */
+  const mitGasse = (l: Lage, kante: number) => {
+    if (!gasse(l.n)) return 0
+    // Gasse rechts von der Beschriftung im Teilbaum
+    let textEnde = kante
+    for (const t of lagen.values()) if (istNachfahr(t.n, l.n)) textEnde = Math.max(textEnde, beschriftungsEnde(t))
+    l.kanalX = Math.max(kante + 3, textEnde + 1.5)
+    const g = l.kanalX - kante + (kanalAnz.get(l.n)! - 1) * KANAL_ABSTAND + 2.5
+    verbreitere(l.n, kante, g)
+    return g
+  }
+  /** Rechtes Ende der Gerätebeschriftung (Schätzung über die Zeichenzahl) */
+  const beschriftungsEnde = (t: Lage) => {
+    const n = t.n
+    const rechts = allp ? t.x + ((n.leiter.length - 1) / 2) * D + (n.def.durchgang ? 3.5 : 4.5) : t.x + (n.def.durchgang ? 5.5 : 6.5)
+    const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+    const zeilen = [...(kurz.trim() ? umbrechen(kurz, 12) : []), ...(n.kinder.length && n.k.name ? umbrechen(n.k.name, 14) : [])]
+    return rechts + Math.max(n.bmk.length * 1.5, ...zeilen.map((z) => z.length * 1.0))
   }
 
   const platziereSeite = (n: Knoten, x0: number, basis: number, ebene: number): number => {
@@ -155,13 +219,26 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       l.x = x0 + eigen / 2
       l.slotX0 = x0
       l.slotW = eigen
-      return eigen
+      return eigen + mitGasse(l, x0 + eigen)
     }
     let x = x0
     for (const c of n.kinder) x += platziereSeite(c, x, basis, ebene + 1)
     const summe = Math.max(x - x0, eigen)
     l.x = lagen.get(n.kinder[0])!.x
-    return summe
+    return summe + mitGasse(l, x0 + summe)
+  }
+
+  /** Abzweig hinter dem Zähler: Steigleitung links, darüber Speiseleitung, Strang nach unten */
+  const platziereAb = (n: Knoten, x0: number, quelle: Knoten): number => {
+    const steigW = allp ? n.leiter.length * D + 4 : 6
+    const w = platziere(n, x0 + steigW)
+    const l = lagen.get(n)!
+    const ausListe = allp ? ausgaenge(quelle) : (['L1'] as LeiterName[])
+    const y: Partial<Record<LeiterName, number>> = {}
+    for (const le of allp ? n.leiter : (['L1'] as LeiterName[])) y[le] = speiseY(Math.max(0, ausListe.indexOf(le)))
+    l.steig = { x: x0 + steigW / 2, y }
+    verbreitere(n, x0 + steigW, steigW, true)
+    return w + steigW
   }
 
   let x = 6
@@ -175,8 +252,11 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       lagen.set(k, { n: k, x: kx, symTop, symBot: symTop + SYM_H, aus: ausgaenge(k), busY: {}, kette: true })
     })
     x = 6 + kopfBreite
-    for (const s of seitenWurzeln) x += platziereSeite(s.n, x, lagen.get(kette[s.k])!.symTop - abzweigAbstand, 0)
-    if (seitenWurzeln.length) trennX = x
+    for (const s of seitenWurzeln) {
+      if (s.ab) x += platziereAb(s.n, x, kette[s.k])
+      else x += platziereSeite(s.n, x, lagen.get(kette[s.k])!.symTop - abzweigAbstand, 0)
+      if (!s.ab) trennX = x
+    }
     for (const c of kette[kette.length - 1].kinder) x += platziere(c, x)
     x += 6
   }
@@ -189,6 +269,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     const i = liste.indexOf(leiter)
     return l.x + (i - (liste.length - 1) / 2) * D
   }
+  /** x der Steigleitung je Leiter */
+  const steigX = (l: Lage, le: LeiterName) => (allp ? l.steig!.x + (l.n.leiter.indexOf(le) - (l.n.leiter.length - 1) / 2) * D : l.steig!.x)
 
   // --- Sammelschienen / Verbindungen zwischen Eltern und Kindern ---
   for (const l of lagen.values()) {
@@ -210,7 +292,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       const punkte: { x: number; senk: number }[] = [{ x: px, senk: istAbzweig ? 2 : 1 }]
       for (const k of kinder) {
         if (allp && !k.n.leiter.includes(le)) continue
-        const kx = allp ? cx(k, le) : k.x
+        const kx = k.steig ? steigX(k, le) : allp ? cx(k, le) : k.x
         const p = punkte.find((pp) => Math.abs(pp.x - kx) < 0.01)
         if (p) p.senk++
         else punkte.push({ x: kx, senk: 1 })
@@ -252,7 +334,12 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
         continue
       }
       let yStart: number
-      if (eltern) yStart = eltern.busY[allp ? le : 'L1'] ?? l.symTop - 4
+      if (l.steig && eltern && l.steig.y[le] !== undefined && eltern.busY[allp ? le : 'L1'] !== undefined) {
+        // Steigleitung vom Abgriff hoch, dann waagerecht über den Abgang
+        const sx = steigX(l, le)
+        yStart = l.steig.y[le]!
+        svg.pfad(`M ${sx} ${eltern.busY[allp ? le : 'L1']} V ${yStart} H ${xx}`, { farbe: fa })
+      } else if (eltern) yStart = eltern.busY[allp ? le : 'L1'] ?? l.symTop - 4
       else yStart = n.def.wurzel && !hager ? OBEN - 2 : l.symTop - 5
       svg.linie(xx, yStart, xx, l.aufwaerts ? l.symBot : l.symTop, { farbe: fa })
     }
@@ -263,7 +350,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
     else if (!eltern && l.kette && bezug?.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
-    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern, eltern.busY.L1, !!o.farbig)
+    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
     if (n.def.symbol === 'schiene' && l.kette && n === kette[kette.length - 1]) {
@@ -277,14 +364,19 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
 
   // Verweise auf andere Blätter sind keine echten Anschlusspunkte für Hilfsleitungen
   const eigene = new Map([...lagen].filter(([n]) => !fremd(n.k.id)))
-  const datenRechts = datenLinien(svg, eigene, o, allp, cx)
+  const mitTabelle = hager && o.tabelle !== false
+  const unterste = symTopZeile(zeilen - 1)
+  // Kanal unter den Endverbrauchern; ohne Tabelle unter deren senkrechter Beschriftung
+  const textUnten = mitTabelle ? 0 : Math.max(0, ...[...eigene.values()].filter((l) => !l.n.kinder.length && Math.abs(l.symTop - unterste) < 0.01).map((l) => Math.max((l.n.k.name ?? l.n.def.label).length, kabelText(l.n).length) * 1.25 + 4))
+  const kanal = { verb: kanalVerb, y0: unterste + SYM_H + 1 + textUnten, unterste, mitTabelle }
+  const daten = datenLinien(svg, eigene, o, allp, cx, kanal)
   const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
-  breite = Math.max(breite, pa.rechts + 4, datenRechts + 4)
+  breite = Math.max(breite, pa.rechts + 4, daten.rechts + 4)
 
-  let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4)
-  if (hager && o.tabelle !== false) {
+  let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4, daten.unten + 4)
+  if (mitTabelle) {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined && !fremd(l.n.k.id)).sort((p, q) => p.slotX0! - q.slotX0!)
-    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, yNetz + 12, trennX) + 4
+    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, Math.max(yNetz + 12, daten.unten + 3), trennX) + 4
   }
   return { inhalt: svg.toString(), breite, hoehe }
 }
@@ -340,26 +432,47 @@ function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: 
 
 type Seite = 'oben' | 'unten' | 'kette' | 'rechts'
 
-/** Zeichnet die Informationsverbindungen; gibt die rechteste belegte x-Position zurück */
-function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx): number {
-  const liste = o.daten ?? []
+/** Umriss eines Geräts für Anschlüsse von Hilfsleitungen */
+function geometrie(l: Lage, allp: boolean, cx: Cx) {
+  const xs = l.n.leiter.map((le) => cx(l, le))
+  const spann = Math.max(...xs) - Math.min(...xs)
+  const durch = l.n.def.durchgang
+  const hb = !allp ? (durch ? 4.5 : 5) : durch ? spann / 2 + 2.5 : Math.max(12, spann + 6) / 2
+  const oben = l.symTop + (durch ? 2.5 : allp ? 1.5 : 2)
+  let unten = oben + (durch ? 9 : allp ? 11 : 10)
+  // einpolige Verbraucher-Schaltzeichen sind teils kürzer als der Gerätekasten
+  if (!allp && l.n.def.symbol === 'verbraucher') unten = l.symTop + verbraucherZeichen(l.n).unten
+  // rechte Kante: beim allpoligen Zähler endet der Kasten vor dem PE
+  const ohnePE = l.n.leiter.filter((le) => le !== 'PE').map((le) => cx(l, le))
+  const rechts = allp && l.n.def.symbol === 'zaehler' && ohnePE.length ? Math.max(...ohnePE) + 2 : l.x + hb
+  return { hb, oben, unten, mitte: (oben + unten) / 2, rechts, xmax: Math.max(...xs) }
+}
+
+interface Kanal {
+  verb: Set<Datenverbindung>
+  /** Oberste Spur */
+  y0: number
+  /** symTop der Endverbraucherzeile */
+  unterste: number
+  mitTabelle: boolean
+}
+
+/** Zeichnet die Informationsverbindungen; gibt die rechteste und unterste belegte Position zurück */
+function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, kanal?: Kanal): { rechts: number; unten: number } {
+  const alleVerb = o.daten ?? []
   let rechts = 0
-  if (!liste.length) return rechts
+  let unten = 0
+  if (!alleVerb.length) return { rechts, unten }
   const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
   const farbe = allp && !o.farbig ? '#000' : '#8e24aa'
-  const seite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
-  const geometrie = (l: Lage) => {
-    const xs = l.n.leiter.map((le) => cx(l, le))
-    const spann = Math.max(...xs) - Math.min(...xs)
-    const durch = l.n.def.durchgang
-    const hb = !allp ? (durch ? 4.5 : 5) : durch ? spann / 2 + 2.5 : Math.max(12, spann + 6) / 2
-    const oben = l.symTop + (durch ? 2.5 : allp ? 1.5 : 2)
-    const unten = oben + (durch ? 9 : allp ? 11 : 10)
-    // rechte Kante: beim allpoligen Zähler endet der Kasten vor dem PE
-    const ohnePE = l.n.leiter.filter((le) => le !== 'PE').map((le) => cx(l, le))
-    const rechts = allp && l.n.def.symbol === 'zaehler' && ohnePE.length ? Math.max(...ohnePE) + 2 : l.x + hb
-    return { hb, oben, unten, mitte: (oben + unten) / 2, rechts }
+  if (kanal?.verb.size) {
+    const k = datenKanal(svg, [...kanal.verb].map((d) => ({ d, a: nachId.get(d.von)!, b: nachId.get(d.nach)! })).filter((v) => v.a && v.b), kanal, allp, cx, farbe)
+    rechts = k.rechts
+    unten = k.unten
   }
+  const liste = alleVerb.filter((d) => !kanal?.verb.has(d))
+  const seite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
+  const geo = (l: Lage) => geometrie(l, allp, cx)
   // Anschlüsse je Gerät zählen, damit mehrere Leitungen nebeneinander liegen
   const zaehl = new Map<string, number>()
   const gesamt = new Map<string, number>()
@@ -369,7 +482,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     const i = zaehl.get(id) ?? 0
     zaehl.set(id, i + 1)
     const v = (i - ((gesamt.get(id) ?? 1) - 1) / 2) * 2.5
-    const g = geometrie(l)
+    const g = geo(l)
     switch (seite(l)) {
       case 'oben': return { p: [l.x + v, g.oben], s: [l.x + v, g.oben - stich] }
       case 'unten': return { p: [l.x + v, g.unten], s: [l.x + v, g.unten + stich] }
@@ -436,7 +549,82 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
   })
-  return rechts
+  return { rechts, unten }
+}
+
+/**
+ * Steuerleitungen über einen Kanal unter den Endverbrauchern: jede Leitung läuft senkrecht
+ * in eine eigene Spur und dort waagerecht zur Gegenstelle. Endverbraucher werden von unten
+ * angefahren, Geräte mit Abgängen (und der ungezählte Bereich) über eine Gasse rechts neben
+ * ihrem Teilbaum. Verschachtelte Leitungen bekommen innen liegende Spuren, damit sich
+ * senkrechte und waagerechte Stücke möglichst nicht kreuzen.
+ */
+function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], k: Kanal, allp: boolean, cx: Cx, farbe: string): { rechts: number; unten: number } {
+  const stil = { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' }
+  const vonUnten = (l: Lage) => l.kanalX === undefined || (!l.n.kinder.length && !l.aufwaerts && !l.kette && Math.abs(l.symTop - k.unterste) < 0.01)
+  const basis = (l: Lage) => (vonUnten(l) ? l.x : l.kanalX!)
+  // Spuren: kürzere Leitungen innen (oben), überlappende darunter
+  const spur = new Map<Datenverbindung, number>()
+  const iv = (v: (typeof verb)[number]) => [Math.min(basis(v.a), basis(v.b)), Math.max(basis(v.a), basis(v.b))]
+  const sortiert = [...verb].sort((p, q) => (iv(p)[1] - iv(p)[0]) - (iv(q)[1] - iv(q)[0]))
+  const belegt: { a: number; b: number; s: number }[] = []
+  for (const v of sortiert) {
+    const [a, b] = iv(v)
+    const s = 1 + Math.max(-1, ...belegt.filter((e) => e.a < b + 2 && a < e.b + 2).map((e) => e.s))
+    belegt.push({ a, b, s })
+    spur.set(v.d, s)
+  }
+  const spurY = (d: Datenverbindung) => k.y0 + spur.get(d)! * KANAL_SPUR
+  // Reihenfolge der Abgänge je Gerät: nach links laufende innen liegend links, nach rechts laufende
+  // mit der tiefsten Spur links, so liegt keine Senkrechte über einer fremden Waagerechten
+  const ende = new Map<string, { x: number; y: number; pfad: number[][] }>()
+  const geraete = new Set(verb.flatMap((v) => [v.a, v.b]))
+  for (const l of geraete) {
+    const eigene = verb.filter((v) => v.a === l || v.b === l).map((v) => ({ v, gegen: basis(v.a === l ? v.b : v.a), s: spur.get(v.d)! }))
+    const x0 = basis(l)
+    const linksL = eigene.filter((e) => e.gegen < x0).sort((p, q) => p.s - q.s)
+    const rechtsL = eigene.filter((e) => e.gegen >= x0).sort((p, q) => q.s - p.s)
+    const reihe = [...linksL, ...rechtsL]
+    const g = geometrie(l, allp, cx)
+    const n = reihe.length
+    reihe.forEach((e, i) => {
+      const y = spurY(e.v.d)
+      let pfad: number[][]
+      if (vonUnten(l)) {
+        const x = k.mitTabelle ? l.x + (i - (n - 1) / 2) * KANAL_ABSTAND : l.x + 2.5 + i * 1.3
+        pfad = [[x, g.unten], [x, y]]
+      } else {
+        // oben rechts am Gerät heraus, über die Gasse nach unten
+        const dx = l.kanalX! + i * KANAL_ABSTAND
+        const start = allp ? g.xmax + 1.2 : l.x + 2.5
+        const ax = start + (n - 1 - i) * 1.2
+        const sy = g.oben - 1.2 - i * 1.2
+        pfad = [[ax, g.oben], [ax, sy], [dx, sy], [dx, y]]
+      }
+      ende.set(`${e.v.d.von}>${e.v.d.nach}:${l.n.k.id}`, { x: pfad[pfad.length - 1][0], y, pfad })
+    })
+  }
+  let rechts = 0
+  let unten = 0
+  for (const v of verb) {
+    const p = ende.get(`${v.d.von}>${v.d.nach}:${v.a.n.k.id}`)!
+    const q = ende.get(`${v.d.von}>${v.d.nach}:${v.b.n.k.id}`)!
+    const pkt = [...p.pfad, ...[...q.pfad].reverse()]
+    svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), stil)
+    for (const e of [p.pfad[0], q.pfad[0]]) svg.kreis(e[0], e[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
+    rechts = Math.max(rechts, p.x, q.x)
+    unten = Math.max(unten, p.y + 1)
+    if (!v.d.art) continue
+    // Beschriftung in die größte freie Lücke der Spur (ohne kreuzende Senkrechte)
+    const xa = Math.min(p.x, q.x), xb = Math.max(p.x, q.x)
+    const kreuz = [...ende.values()].filter((e) => e.y > p.y + 0.01 && e.x > xa && e.x < xb).map((e) => e.x).sort((m, n) => m - n)
+    const punkte = [xa, ...kreuz, xb]
+    let best = 0
+    for (let i = 1; i < punkte.length; i++) if (punkte[i] - punkte[i - 1] > punkte[best + 1] - punkte[best]) best = i - 1
+    const breiteText = v.d.art.length * 0.8
+    if (punkte[best + 1] - punkte[best] > breiteText + 1.5) svg.text((punkte[best] + punkte[best + 1]) / 2, p.y - 0.5, v.d.art, { groesse: 1.5, anker: 'middle', farbe })
+  }
+  return { rechts, unten }
 }
 
 // ---------- Potentialausgleich ----------
@@ -784,6 +972,102 @@ function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, 
   }
 }
 
+/** Schaltzeichen der Verbraucher nach DIN EN 60617 je Verwendung */
+export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'backofen' | 'kuehl' | 'gefrier' | 'wasch' | 'trockner' | 'spuel' | 'motor' | 'geraet' {
+  const v = String(n.k.params?.verwendung ?? '').toLowerCase()
+  if (v.startsWith('steckdose')) return 'steckdose'
+  if (v.startsWith('beleuchtung') || v.startsWith('licht')) return 'leuchte'
+  if (v.startsWith('heizung') || v.startsWith('herd') || v.startsWith('kochfeld')) return 'herd'
+  if (v.startsWith('backofen')) return 'backofen'
+  if (v.startsWith('kühl')) return 'kuehl'
+  if (v.startsWith('gefrier')) return 'gefrier'
+  if (v.startsWith('waschmaschine')) return 'wasch'
+  if (v.startsWith('wäschetrockner') || v.startsWith('trockner')) return 'trockner'
+  if (v.startsWith('spül')) return 'spuel'
+  if (v.startsWith('motor')) return 'motor'
+  return 'geraet'
+}
+
+/**
+ * Zeichnet das Verbraucher-Schaltzeichen unter dem Anschluss bei (x, y0); gibt die Unterkante
+ * relativ zu y0 zurück. Ohne svg wird nur die Unterkante berechnet. `innen`: nur das Zeichen
+ * im allpoligen Gerätekasten (ohne Zuleitung).
+ */
+function verbraucherZeichen(n: Knoten, svg?: Svg, x = 0, y0 = 0, innen = false): { unten: number } {
+  const art = verbraucherArt(n)
+  const zul = (bis: number) => { if (!innen) svg?.linie(x, y0, x, y0 + bis) }
+  const kasten = (s = 8) => { const t = y0 + 3 + (innen ? 1.5 : 0); if (!innen) svg?.rechteck(x - s / 2, t, s, s); return t }
+  switch (art) {
+    case 'steckdose': {
+      // Steckdose (S00473): Querstrich mit Halbkreis darunter
+      const yb = y0 + (innen ? 5 : 6)
+      zul(6)
+      if (svg) {
+        svg.linie(x - 3.5, yb, x + 3.5, yb)
+        svg.pfad(`M ${x - 3} ${yb + 3} A 3 3 0 0 1 ${x + 3} ${yb + 3}`)
+      }
+      return { unten: 9 }
+    }
+    case 'leuchte': {
+      // Leuchte, allgemein: Kreuz am Leitungsende
+      const m = y0 + 7.5
+      zul(7.5)
+      svg?.linie(x - 2.5, m - 2.5, x + 2.5, m + 2.5)
+      svg?.linie(x - 2.5, m + 2.5, x + 2.5, m - 2.5)
+      return { unten: 10 }
+    }
+    case 'motor': {
+      const m = y0 + 7
+      zul(3)
+      svg?.kreis(x, m, 4, { fuellung: '#fff' })
+      svg?.text(x, m + 1.1, 'M', { groesse: 3.2, anker: 'middle', fett: true })
+      return { unten: 11 }
+    }
+    default: {
+      zul(3)
+      const t = kasten()
+      if (!svg) return { unten: 11 }
+      const m = t + 4
+      switch (art) {
+        case 'herd':
+          svg.punkt(x, m - 1.6, '#000', 1)
+          svg.punkt(x - 1.7, m + 1.4, '#000', 1)
+          svg.punkt(x + 1.7, m + 1.4, '#000', 1)
+          break
+        case 'backofen':
+          svg.linie(x - 4, t + 2, x + 4, t + 2)
+          svg.punkt(x, m + 1, '#000', 1)
+          break
+        case 'kuehl':
+          svg.text(x, m + 2, '*', { groesse: 4, anker: 'middle' })
+          break
+        case 'gefrier':
+          svg.text(x, m + 1.8, '***', { groesse: 3.2, anker: 'middle' })
+          break
+        case 'wasch':
+          svg.kreis(x, m, 2.6)
+          svg.punkt(x, m, '#000', 1.1)
+          break
+        case 'trockner':
+          svg.kreis(x, m - 0.5, 2.4)
+          svg.linie(x - 0.6, m + 1.4, x - 0.6, m - 2.2)
+          svg.punkt(x, m + 3, '#000', 0.5)
+          break
+        case 'spuel':
+          svg.linie(x - 4, t, x + 4, t + 8, { breite: 0.25 })
+          svg.linie(x - 4, t + 8, x + 4, t, { breite: 0.25 })
+          svg.kreis(x, m, 2.4, { fuellung: '#fff' })
+          svg.punkt(x, m, '#000', 1)
+          break
+        default:
+          // Elektrogerät, allgemein
+          svg.text(x, m + 1.8, 'E', { groesse: 5, anker: 'middle', fett: true })
+      }
+      return { unten: 11 }
+    }
+  }
+}
+
 function symbolEinpolig(svg: Svg, l: Lage) {
   const { x, symTop: y0, symBot: y1 } = l
   const n = l.n
@@ -841,6 +1125,10 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       svg.text(x, (y0 + y1) / 2 + 0.8, 'UV', { groesse: 2.2, anker: 'middle', fett: true })
       break
     default: {
+      if (art === 'verbraucher' && !l.aufwaerts) {
+        verbraucherZeichen(n, svg, x, y0)
+        break
+      }
       const w = 10, h = 10, bt = y0 + 2
       if (l.aufwaerts) verbindung(bt + h, y1)
       else verbindung(y0, bt)
@@ -875,7 +1163,8 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     for (const le of n.leiter) svg.linie(cx(l, le), auf ? bt + h : y0, cx(l, le), auf ? y1 : bt, { farbe: farbe(le) })
     if (n.kinder.length) for (const le of l.aus) svg.linie(cx(l, le, l.aus), auf ? y0 : bt + h, cx(l, le, l.aus), auf ? bt : y1, { farbe: farbe(le) })
     svg.rechteck(bx, bt, w, h)
-    boxInhalt(svg, art, bx, bt, w, h)
+    if (art === 'verbraucher') verbraucherZeichen(n, svg, l.x, bt - 3, true)
+    else boxInhalt(svg, art, bx, bt, w, h)
     if (art === 'spd' && !l.pa) {
       if (auf) { svg.linie(l.x, bt - 2, l.x, bt); erde(svg, l.x, bt - 2, '#000', true) }
       else { svg.linie(l.x, bt + h, l.x, bt + h + 2); erde(svg, l.x, bt + h + 2) }
