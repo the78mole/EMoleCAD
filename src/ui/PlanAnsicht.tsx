@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import type { Projekt } from '../model/types'
 import { erzeugeBlatt, VORLAGEN, type Blatt } from '../schematic/blatt'
-import { zeichnePlan, type Anordnung, type Modus } from '../schematic/render'
+import { zeichnePlaene } from '../schematic/blaetter'
+import type { Anordnung, Modus } from '../schematic/render'
 import { dateiname, exportierePdf, herunterladen } from './export'
 
 interface Props {
@@ -33,9 +34,13 @@ function schreibe(key: string, v: unknown) {
 // oxlint-disable-next-line react/only-export-components -- Hilfsfunktion für den Export; betrifft nur Fast Refresh im Entwicklungsserver
 export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: DarstellungsOptionen, modi: Modus[]): Blatt[] {
   const v = VORLAGEN.find((x) => x.id === d.vorlage) ?? VORLAGEN[0]
-  return modi.map((m, i) =>
-    erzeugeBlatt(zeichnePlan(analyse, { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }), projekt, m, v, i + 1, modi.length, d.farbig),
-  )
+  // je Darstellung ggf. mehrere Blätter (weitere Zählerstränge); fortlaufend nummeriert
+  const plaene: { m: Modus; plan: ReturnType<typeof zeichnePlaene>[number] }[] = []
+  for (const m of modi) {
+    const opt = { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }
+    for (const plan of zeichnePlaene(analyse, opt, plaene.length + 1)) plaene.push({ m, plan })
+  }
+  return plaene.map(({ m, plan }, i) => erzeugeBlatt(plan, projekt, m, v, i + 1, plaene.length, d.farbig))
 }
 
 export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
@@ -48,7 +53,10 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
   const [zoom, setZoom] = useState<number | 'fit'>('fit')
   const [exportiert, setExportiert] = useState(false)
 
-  const blatt = useMemo(() => erzeugeBlaetter(projekt, analyse, { vorlage, farbig, anordnung, tabelle }, [modus])[0], [projekt, analyse, vorlage, farbig, anordnung, tabelle, modus])
+  const blaetter = useMemo(() => erzeugeBlaetter(projekt, analyse, { vorlage, farbig, anordnung, tabelle }, [modus]), [projekt, analyse, vorlage, farbig, anordnung, tabelle, modus])
+  const [blattWahl, setBlattWahl] = useState(0)
+  const blattNr = Math.min(blattWahl, blaetter.length - 1)
+  const blatt = blaetter[blattNr]
 
   const pdf = async (beide: boolean) => {
     setExportiert(true)
@@ -95,8 +103,15 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
           <button className={zoom === 'fit' ? 'aktiv' : ''} onClick={() => setZoom('fit')} title="Einpassen">Fit</button>
           <button onClick={() => setZoom((z) => Math.min(4, (z === 'fit' ? 0.5 : z) * 1.25))} title="Vergrößern">+</button>
         </div>
+        {blaetter.length > 1 && (
+          <div className="segment klein" title="Blatt (weitere Zählerstränge stehen auf eigenen Blättern)">
+            {blaetter.map((_, i) => (
+              <button key={i} className={i === blattNr ? 'aktiv' : ''} onClick={() => setBlattWahl(i)}>Blatt {i + 1}</button>
+            ))}
+          </div>
+        )}
         <span className="spacer" />
-        <button onClick={() => herunterladen(blatt.svg, dateiname(projekt.projekt.titel + '_' + modus, 'svg'), 'image/svg+xml')}>SVG</button>
+        <button onClick={() => herunterladen(blatt.svg, dateiname(projekt.projekt.titel + '_' + modus + (blaetter.length > 1 ? `_blatt${blattNr + 1}` : ''), 'svg'), 'image/svg+xml')}>SVG</button>
         <button onClick={() => pdf(false)} disabled={exportiert}>PDF</button>
         <button className="primaer" onClick={() => pdf(true)} disabled={exportiert}>{exportiert ? 'Exportiere…' : 'PDF (beide Pläne)'}</button>
       </div>
