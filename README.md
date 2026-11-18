@@ -105,14 +105,14 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `speicher` | Batteriespeicher (DC, wenn unter Wechselrichter) | CC | kapazitaet, leistung |
 | `wallbox` | Wallbox | XD | leistung, steuerbar |
 | `waermepumpe` | Wärmepumpe | EG | leistung, steuerbar |
-| `verbraucher` | Verbraucher / Stromkreis | je Verwendung: XD Steckdosen, EA Beleuchtung, EB Heizung/Herd, MA Motor | verwendung, leistung |
+| `verbraucher` | Verbraucher / Stromkreis | je Verwendung: XD Steckdosen, EA Beleuchtung, EB Heizung/Herd, Backofen, Waschmaschine, Wäschetrockner, Spülmaschine, Elektrogerät, EC Kühl-/Gefriergerät, MA Motor | verwendung, leistung |
 | `steuerbox` | Steuerbox / Rundsteuerempfänger | KE | art |
 | `smgw` | Smart-Meter-Gateway | KE | modell |
 | `sammelschiene` | Sammelschiene (Abgänge hängen daran) | WD | nennstrom, querschnitt |
 | `unterverteilung` | Unterverteilung | UC | ort |
 | `pas` | Potentialausgleichsschiene (ohne Quelle, siehe Potentialausgleich) | PAS | erder, querschnitt |
 
-Die Kennbuchstaben (Klasse + Unterklasse) folgen DIN EN IEC 81346-2:2019. Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
+Die Kennbuchstaben (Klasse + Unterklasse) folgen DIN EN IEC 81346-2:2019. Verbraucher werden im einpoligen Plan mit dem Schaltzeichen ihrer Verwendung nach DIN EN 60617 gezeichnet (Steckdose, Leuchte, Herd, Backofen, Kühl-/Gefriergerät, Wasch-/Spülmaschine, Wäschetrockner, Motor, sonst Elektrogerät „E“). Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
 
 ### Ungezählter Bereich (Vorzählerbereich)
 
@@ -129,6 +129,17 @@ rechts neben der Einspeisung als paralleler Abgriff nach oben gezeichnet, z. B. 
 ```
 
 Die Einspeisekette läuft über Sammelschiene, SLS, Zähler, HLAK, SLS, Trennschalter oder Sicherung weiter; an der ersten anderen Verzweigung beginnt die Sammelschiene.
+
+Abzweige hinter dem (ersten) Zähler, etwa eine zweite HLAK mit eigener Verteilung, werden dagegen wie die
+Hauptverteilung von oben nach unten aufgebaut: Eine Steigleitung führt vom Abgriff hoch, darunter folgen die
+Schutzorgane, die Endverbraucher stehen immer in der untersten Zeile direkt über der Stromkreistabelle.
+
+### Steuerleitungen
+
+Datenverbindungen zwischen dem ungezählten Bereich (SMGW, Steuerbox) und Geräten der Verteilung (Wechselrichter,
+Wallbox, Speicher, Wärmepumpe, Unterverteilung, …) laufen über einen Kanal unter den Endverbrauchern: Jede Leitung
+hat dort eine eigene Spur. Endverbraucher werden von unten angefahren, Geräte mit Abgängen über eine eigene Gasse
+rechts neben ihrem Teilbaum. Verbindungen innerhalb des ungezählten Bereichs und zum Zähler (LMN, CLS) bleiben kurz und direkt.
 
 ### Mehrere Zähler (z. B. § 14a Modul 2)
 

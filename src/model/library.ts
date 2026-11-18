@@ -52,6 +52,14 @@ export const VERWENDUNG: Record<string, string> = {
   Beleuchtung: 'EA',  // Licht erzeugen
   'Heizung/Herd': 'EB', // elektrisch heizen
   'Motor/Antrieb': 'MA', // elektrischer Antrieb
+  Herd: 'EB',
+  Backofen: 'EB',
+  'Kühlgerät': 'EC',     // Kühlen
+  'Gefriergerät': 'EC',
+  Waschmaschine: 'EB',
+  'Wäschetrockner': 'EB',
+  'Spülmaschine': 'EB',
+  'Elektrogerät': 'EB',
 }
 
 export const BIBLIOTHEK: TypDef[] = [
