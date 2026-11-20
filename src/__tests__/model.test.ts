@@ -21,7 +21,7 @@ describe('YAML', () => {
     }
   })
   it('lehnt ungültige Pole ab', () => {
-    expect(() => parseYaml('komponenten:\n  - { id: F1, typ: ls, pole: 2 }')).toThrow(/pole/)
+    expect(() => parseYaml('komponenten:\n  - { id: F1, typ: ls, pole: 5 }')).toThrow(/pole/)
   })
 })
 
@@ -244,7 +244,7 @@ potentialausgleich:
   })
 })
 
-describe('Lasttrennschalter allpolig', () => {
+describe('Lasttrennschalter Polzahl', () => {
   const yaml = (extra: string) => `projekt: { titel: T }
 netz: { form: TN-C-S }
 komponenten:
@@ -255,7 +255,7 @@ komponenten:
   const FARBE = { L1: '#7a4a1e', L2: '#111111', L3: '#7d7d7d', N: '#1f6fd1' }
   // Trennerkontakte (Kreis am festen Kontakt) je Leiterfarbe
   const kontakte = (inhalt: string, farbe: string) => (inhalt.match(new RegExp(`<circle[^>]*stroke="${farbe}"`, 'g')) ?? []).length
-  // Kennzeichnung voreilend/nacheilend: zwei dünne Striche (0.3) am N-Schaltstück
+  // Kennzeichnung voreilend: ein dünner Strich (0.3) am N-Schaltstück
   const marken = (inhalt: string) => (inhalt.match(new RegExp(`<line[^>]*stroke="${FARBE.N}" stroke-width="0.3"`, 'g')) ?? []).length
   const plan = (p: ReturnType<typeof parseYaml>) => zeichnePlan(analysiere(p), { modus: 'allpolig', farbig: true, netz: p.netz }).inhalt
 
@@ -263,21 +263,42 @@ komponenten:
     const inhalt = plan(parseYaml(yaml('')))
     for (const le of ['L1', 'L2', 'L3'] as const) expect(kontakte(inhalt, FARBE[le])).toBe(1)
     expect(kontakte(inhalt, FARBE.N)).toBe(0)
-    expect(marken(inhalt)).toBe(0)
   })
-  it('schaltet bei allpolig den N mit, voreilend/nacheilend gekennzeichnet', () => {
-    const p = parseYaml(yaml(', params: { nennstrom: 63, allpolig: true }'))
-    expect(p.komponenten[1].params!.allpolig).toBe(true)
+  it('4-polig schaltet den N mit, ohne Kennzeichnung', () => {
+    const p = parseYaml(yaml(', pole: 4, params: { nennstrom: 63 }'))
     expect(parseYaml(toYaml(p))).toEqual(p)
     const inhalt = plan(p)
     for (const le of ['L1', 'L2', 'L3', 'N'] as const) expect(kontakte(inhalt, FARBE[le])).toBe(1)
-    expect(marken(inhalt)).toBe(2)
-    expect(inhalt).toContain('63A allpolig')
+    expect(marken(inhalt)).toBe(0)
+    expect(inhalt).toContain('>63A 4-polig<')
+    expect(inhalt).not.toContain('>voreilend<')
   })
-  it('liest "false" in Anführungszeichen als false und lehnt Unsinn ab', () => {
-    const p = parseYaml(yaml(', params: { allpolig: "false" }'))
-    expect(p.komponenten[1].params!.allpolig).toBe(false)
-    expect(kontakte(plan(p), FARBE.N)).toBe(0)
+  it('4-polig voreilend kennzeichnet den N-Kontakt', () => {
+    const p = parseYaml(yaml(', pole: 4, voreilend: true, params: { nennstrom: 63 }'))
+    expect(p.komponenten[1]).toMatchObject({ pole: 4, voreilend: true })
+    expect(parseYaml(toYaml(p))).toEqual(p)
+    const inhalt = plan(p)
+    expect(kontakte(inhalt, FARBE.N)).toBe(1)
+    expect(marken(inhalt)).toBe(1)
+    expect(inhalt).toContain('>63A 4-polig<')
+    expect(inhalt).toContain('>voreilend<')
+    expect(inhalt).not.toContain('nacheilend')
+  })
+  it('liest alte Dateien mit params.allpolig als 4-polig voreilend', () => {
+    const p = parseYaml(yaml(', params: { nennstrom: 63, allpolig: true }'))
+    expect(p.komponenten[1]).toMatchObject({ pole: 4, voreilend: true, params: { nennstrom: 63 } })
+    expect(p.komponenten[1].params).not.toHaveProperty('allpolig')
+    const aus = parseYaml(yaml(', params: { allpolig: "false" }'))
+    expect(aus.komponenten[1].pole).toBeUndefined()
+    expect(aus.komponenten[1].params).toBeUndefined()
     expect(() => parseYaml(yaml(', params: { allpolig: vielleicht }'))).toThrow(YamlFehler)
+  })
+  it('warnt bei "voreilend" ohne 2-/4-polig', () => {
+    const p = parseYaml(yaml(', voreilend: true'))
+    expect(analysiere(p).meldungen.some((m) => m.id === 'QB1' && m.stufe === 'warnung' && m.text.includes('voreilend'))).toBe(true)
+  })
+  it('warnt, wenn ein Gerät den N nicht schalten kann', () => {
+    const p = parseYaml(yaml('').replace('typ: ls, quelle: QB1, pole: 3', 'typ: ls, quelle: QB1, pole: 4'))
+    expect(analysiere(p).meldungen.some((m) => m.id === 'FC1' && m.text.includes('N nicht schalten'))).toBe(true)
   })
 })

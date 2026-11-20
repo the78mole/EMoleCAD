@@ -85,11 +85,30 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
       {!def.dc && !def.potential && (
         <div className="reihe">
           <label>Polzahl
-            <select value={k.pole ?? ''} disabled={!def.poleWaehlbar} onChange={(e) => setze({ pole: e.target.value ? (Number(e.target.value) as 1 | 3) : undefined })}>
-              <option value="">Standard ({def.pole}-polig)</option>
-              <option value="1">1-polig (L/N/PE)</option>
-              <option value="3">3-polig (3/N/PE)</option>
-            </select>
+            {def.nSchaltbar ? (
+              <select
+                value={k.pole ? `${k.pole}${k.voreilend && (k.pole === 2 || k.pole === 4) ? 'v' : ''}` : ''}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setze({ pole: v ? (Number(v[0]) as 1 | 2 | 3 | 4) : undefined, voreilend: v.endsWith('v') || undefined })
+                }}
+              >
+                <option value="">Standard ({def.pole}-polig)</option>
+                <option value="1">1-polig (L)</option>
+                <option value="2">2-polig (L/N)</option>
+                <option value="3">3-polig (L1, L2, L3)</option>
+                <option value="4">4-polig (L1, L2, L3, N)</option>
+                <option value="4v">4-polig voreilend (L1, L2, L3, Nv)</option>
+                {k.pole === 2 && k.voreilend && <option value="2v">2-polig voreilend (L, Nv)</option>}
+              </select>
+            ) : (
+              <select value={k.pole ?? ''} disabled={!def.poleWaehlbar} onChange={(e) => setze({ pole: e.target.value ? (Number(e.target.value) as 1 | 3) : undefined })}>
+                <option value="">Standard ({def.pole}-polig)</option>
+                <option value="1">1-polig (L/N/PE)</option>
+                <option value="3">3-polig (3/N/PE)</option>
+                {(k.pole === 2 || k.pole === 4) && <option value={k.pole}>{k.pole}-polig</option>}
+              </select>
+            )}
           </label>
           {knoten?.pole === 1 && !knoten.dc && (
             <label>Phase

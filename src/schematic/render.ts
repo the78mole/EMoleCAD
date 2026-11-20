@@ -211,7 +211,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const beschriftungsEnde = (t: Lage) => {
     const n = t.n
     const rechts = allp ? t.x + ((n.leiter.length - 1) / 2) * D + (n.def.durchgang ? 3.5 : 4.5) : t.x + (n.def.durchgang ? 5.5 : 6.5)
-    const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+    const kurz = kurzText(n)
     const zeilen = [...(kurz.trim() ? umbrechen(kurz, 12) : []), ...(n.kinder.length && n.k.name ? umbrechen(n.k.name, 14) : [])]
     return rechts + Math.max(n.bmk.length * 1.5, ...zeilen.map((z) => z.length * 1.0))
   }
@@ -377,7 +377,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     else symbolEinpolig(svg, l)
     if (n.def.symbol === 'schiene' && l.kette && n === kette[kette.length - 1]) {
       // Sammelschiene als Kopf der Einspeisung: Beschriftung an der Schiene
-      const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+      const kurz = kurzText(n)
       const ty = busTop - 1.6
       svg.text(l.x + (allp ? 12 : 4), ty, `${n.bmk}  ${n.k.name ?? kurz}`, { groesse: 2.3, fett: true })
       if (n.k.name && kurz) svg.text(l.x + (allp ? 12 : 4) + 40, ty, kurz, { groesse: 1.9, farbe: '#333' })
@@ -826,7 +826,7 @@ function tabelle(svg: Svg, spalten: Lage[], x0: number, kopfEnde: number, y0: nu
     { titel: 'Kabeltyp', wert: (n) => n.k.kabel?.typ ?? '' },
     { titel: 'Querschnitt', wert: (n) => (n.k.kabel?.querschnitt ? `${n.k.kabel.querschnitt} mm²` : '') },
     { titel: 'Länge', wert: (n) => (n.k.kabel?.laenge ? `${n.k.kabel.laenge} m` : '') },
-    { titel: 'Kenndaten', wert: (n) => n.def.kurz?.(n.k.params ?? {}) ?? '', hoch: true },
+    { titel: 'Kenndaten', wert: (n) => kurzText(n), hoch: true },
     { titel: 'Hersteller', wert: (n) => n.k.produkt?.hersteller ?? '' },
     { titel: 'Artikelnummer', wert: (n) => n.k.produkt?.artikel ?? '' },
   ]
@@ -939,10 +939,17 @@ function erde(svg: Svg, x: number, y: number, fa = '#000', oben = false) {
 
 // ---------- Symbolbausteine ----------
 
-/** Schaltglied (Schließer). `vorNach`: Kontakt schließt voreilend und öffnet nacheilend
- * (IEC 60617: Schließer, früher schließend / später öffnend; Kennzeichnung am beweglichen Kontakt: Strich zur Schließrichtung = voreilend,
- * Strich entgegen = nacheilend). */
-function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: boolean; kreis?: boolean; farbe?: string; dx?: number; vorNach?: boolean }) {
+/** Schaltglied (Schließer). `voreilend`: Kontakt schließt vor den übrigen Kontakten des Geräts
+ * (IEC 60617, Kennzeichnung durch einen kurzen Strich am beweglichen Kontakt in Schließrichtung). */
+/** Kurzbeschriftung aus den Parametern, bei geschaltetem N mit Polzahl (z. B. „63A 4-polig voreilend“) */
+function kurzText(n: Knoten): string {
+  const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+  if (!n.nGeschaltet) return kurz
+  // eingestellte Polzahl des Geräts, auch wenn die Zuleitung nur einphasig ist
+  return `${kurz} ${n.k.pole}-polig${n.voreilend ? ' voreilend' : ''}`.trim()
+}
+
+function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: boolean; kreis?: boolean; farbe?: string; dx?: number; voreilend?: boolean }) {
   const fa = o.farbe ?? '#000'
   const ya = y0 + 3.5, yb = y1 - 3.5
   const dx = o.dx ?? 2.6
@@ -954,17 +961,14 @@ function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: bool
     svg.linie(x - 0.8, ya + 0.8, x + 0.8, ya - 0.8, { farbe: fa })
   }
   if (o.kreis) svg.kreis(x, ya - 0.6, 0.6, { farbe: fa, fuellung: '#fff' })
-  if (o.vorNach) {
-    // Senkrecht zum Schaltstück: Strich zum festen Kontakt (voreilend) an der Spitze,
-    // Strich vom festen Kontakt weg (nacheilend) etwas darunter
+  if (o.voreilend) {
+    // Strich an der Spitze des Schaltstücks, senkrecht dazu in Richtung fester Kontakt
     const ax = -dx, ay = ya + 0.6 - yb
     const len = Math.hypot(ax, ay)
     const ux = ax / len, uy = ay / len
     const px = -uy, py = ux // senkrecht, zeigt Richtung fester Kontakt (nach rechts)
     const tx = x - dx, ty = ya + 0.6
     svg.linie(tx, ty, tx + px * 1.4, ty + py * 1.4, { farbe: fa, breite: 0.3 })
-    const bx = tx - ux * 1.4, by = ty - uy * 1.4
-    svg.linie(bx, by, bx - px * 1.4, by - py * 1.4, { farbe: fa, breite: 0.3 })
   }
   return { mitteX: x - dx / 2, mitteY: (ya + yb) / 2 }
 }
@@ -1234,11 +1238,10 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     return
   }
 
-  const allpolig = art === 'trenner' && n.k.params?.allpolig === true
   const geschaltet = (le: LeiterName): boolean => {
     switch (art) {
       case 'trenner':
-        return istPhase(le) || (le === 'N' && allpolig)
+        return istPhase(le) || (le === 'N' && !!n.nGeschaltet)
       case 'hak': case 'sicherung': case 'ls': case 'sls':
         return istPhase(le)
       case 'rcd': case 'rcbo':
@@ -1260,7 +1263,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     else if (art === 'rcd' || art === 'rcbo') {
       glieder.push(schalter(svg, xx, y0, y1 - 3.5, { farbe: fa, kreuz: art === 'rcbo' && le !== 'N', dx: 2 }))
       svg.linie(xx, y1 - 3.5, xx, y1, { farbe: fa })
-    } else glieder.push(schalter(svg, xx, y0, y1, { farbe: fa, kreuz: art === 'ls' || art === 'sls', kreis: art === 'trenner', dx: 2, vorNach: allpolig && le === 'N' }))
+    } else glieder.push(schalter(svg, xx, y0, y1, { farbe: fa, kreuz: art === 'ls' || art === 'sls', kreis: art === 'trenner', dx: 2, voreilend: le === 'N' && !!n.voreilend }))
   }
 
   if (art === 'zaehler') {
@@ -1302,7 +1305,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
 function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: Cx, mitTabelle: boolean, datenAnschluesse = 0) {
   const n = l.n
   const rechts = allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + (n.def.durchgang ? 3.5 : 4.5) : l.x + (n.def.durchgang ? 5.5 : 6.5)
-  const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+  const kurz = kurzText(n)
   // Bei Datenanschlüssen rechts oben (Einspeisekette) die Beschriftung darunter beginnen
   let y = l.symTop + 3.6 + (l.kette && datenAnschluesse ? 2.5 + datenAnschluesse * 1.6 : 0)
   svg.text(rechts, y, n.bmk, { groesse: 2.4, fett: true })
