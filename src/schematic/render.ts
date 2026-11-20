@@ -980,7 +980,7 @@ function sicherung(svg: Svg, x: number, y0: number, y1: number, fa = '#000') {
 }
 
 /** Inhalt einer Gerätebox (Wechselrichter, Wallbox, ...) */
-function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, h: number) {
+function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, h: number, gespiegelt = false) {
   const mx = x0 + w / 2, my = y0 + h / 2
   const t = (s: string, gr = 2.4) => svg.text(mx, my + gr * 0.35, s, { groesse: gr, anker: 'middle', fett: true })
   switch (art) {
@@ -1018,11 +1018,19 @@ function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, 
     case 'smgw':
       t('SMGW', 1.9)
       break
-    case 'spd':
-      // Varistor-Symbol
-      svg.rechteck(mx - 1.2, y0 + 1.5, 2.4, h - 3, { fuellung: '#fff' })
-      svg.linie(mx - 2, y0 + h - 2, mx + 2, y0 + 2)
+    case 'spd': {
+      // Überspannungsableiter (IEC 60617): Rechteck, vom Leiteranschluss ein Pfeil zur Erdseite,
+      // gegenüber ein kurzer Stummel zum Erdanschluss. `gespiegelt`: Erde liegt oben.
+      const iw = 3.2, ih = h - 3, it = y0 + 1.5, ib = it + ih
+      const r = gespiegelt ? -1 : 1
+      const oben = gespiegelt ? ib : it, unten = gespiegelt ? it : ib
+      svg.rechteck(mx - iw / 2, it, iw, ih, { fuellung: '#fff' })
+      const spitze = oben + r * ih * 0.5, basis = oben + r * ih * 0.22
+      svg.linie(mx, oben, mx, basis)
+      svg.pfad(`M ${mx - 0.75} ${basis} L ${mx + 0.75} ${basis} L ${mx} ${spitze} Z`, { fuellung: '#000', breite: 0.2 })
+      svg.linie(mx, unten, mx, unten - r * ih * 0.15)
       break
+    }
     case 'verbraucher':
     default:
       svg.linie(mx - 2, my - 1.5, mx + 2, my + 1.5)
@@ -1195,7 +1203,7 @@ function symbolEinpolig(svg: Svg, l: Lage) {
         else verbindung(bt + h, y1)
       }
       svg.rechteck(x - w / 2, bt, w, h)
-      boxInhalt(svg, art, x - w / 2, bt, w, h)
+      boxInhalt(svg, art, x - w / 2, bt, w, h, !!l.aufwaerts)
       if (art === 'spd' && !l.pa) {
         if (l.aufwaerts) { verbindung(bt - 2, bt); erde(svg, x, bt - 2, '#000', true) }
         else { verbindung(bt + h, bt + h + 2); erde(svg, x, bt + h + 2) }
@@ -1222,7 +1230,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     if (n.kinder.length) for (const le of l.aus) svg.linie(cx(l, le, l.aus), auf ? y0 : bt + h, cx(l, le, l.aus), auf ? bt : y1, { farbe: farbe(le) })
     svg.rechteck(bx, bt, w, h)
     if (art === 'verbraucher') verbraucherZeichen(n, svg, l.x, bt - 3, true)
-    else boxInhalt(svg, art, bx, bt, w, h)
+    else boxInhalt(svg, art, bx, bt, w, h, auf)
     if (art === 'spd' && !l.pa) {
       if (auf) { svg.linie(l.x, bt - 2, l.x, bt); erde(svg, l.x, bt - 2, '#000', true) }
       else { svg.linie(l.x, bt + h, l.x, bt + h + 2); erde(svg, l.x, bt + h + 2) }
