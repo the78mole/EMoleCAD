@@ -269,6 +269,12 @@ function Innen({ projekt, analyse, onChange }: Props) {
           fitViewOptions={{ padding: '6.5%' }}
           forceColorMode="light"
           minZoom={0.15}
+          // Mausrad wie in der Planansicht: Rad = hoch/runter, Shift+Rad = links/rechts,
+          // Strg+Rad (und Touchpad-Pinch) = Zoom zum Mauszeiger; Zwei-Finger-Wischen verschiebt
+          panOnScroll
+          panOnScrollSpeed={1}
+          zoomOnScroll={false}
+          zoomOnPinch
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={20} size={1} />
