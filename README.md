@@ -94,7 +94,7 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `hlak` | Hauptleiteranschlussklemme (Einspeisekette) | XD | querschnitt, nennstrom |
 | `zaehler` | Zähler | PG | art (Bezug/Zweirichtung/Erzeugung/Unterzähler), zaehlernummer, messkonzept |
 | `sls` | SLS-Schalter | FC | nennstrom |
-| `trennschalter` | Lasttrennschalter | QB | nennstrom; Polzahl 1/2/3/4, auch 4-polig voreilend (z. B. Netztrennung für Ersatzstrom) |
+| `trennschalter` | Lasttrennschalter | QB | nennstrom; Datenanschluss (z. B. Steuerung durch Hybrid-Wechselrichter); Polzahl 1/2/3/4, auch 4-polig voreilend (z. B. Netztrennung für Ersatzstrom) |
 | `sicherung` | Schmelzsicherung | FC | nennstrom, bauform |
 | `rcd` | FI-Schutzschalter | FB | nennstrom, fehlerstrom, rcdtyp |
 | `ls` | Leitungsschutzschalter | FC | charakteristik, nennstrom |
@@ -175,7 +175,7 @@ datenverbindungen:
   - { von: KE2, nach: KE1, art: CLS }   # Steuerbox – SMGW
 ```
 
-Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, SMGW, Steuerbox, Wechselrichter, Speicher, Wallbox, Wärmepumpe) violette Anschlüsse links/rechts. Eine Verbindung von rechts nach links erzeugt eine Datenverbindung; die Art (LMN, CLS, Modbus …) lässt sich in den Eigenschaften bearbeiten. Für SMGW–Zähler und SMGW–Steuerbox wird LMN bzw. CLS vorbelegt.
+Im grafischen Editor haben kommunikationsfähige Bausteine (Zähler, Lasttrennschalter, SMGW, Steuerbox, Wechselrichter, Speicher, Wallbox, Wärmepumpe) violette Anschlüsse links/rechts. Eine Verbindung von rechts nach links erzeugt eine Datenverbindung; die Art (LMN, CLS, Modbus …) lässt sich in den Eigenschaften bearbeiten. Für SMGW–Zähler und SMGW–Steuerbox wird LMN bzw. CLS vorbelegt, für Wechselrichter–Lasttrennschalter Steuersignal.
 
 ### Potentialausgleich
 

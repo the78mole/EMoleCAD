@@ -59,6 +59,8 @@ export function standardDatenart(p: Projekt, von: string, nach: string): string 
   if (paar.has('smgw') && paar.has('zaehler')) return 'LMN'
   if (paar.has('smgw') && paar.has('steuerbox')) return 'CLS'
   if (paar.has('steuerbox')) return 'Steuersignal'
+  // Netztrennung für Ersatzstrom, z. B. Fronius Backup Controller vom Hybridwechselrichter gesteuert
+  if (paar.has('trennschalter') && paar.has('wechselrichter')) return 'Steuersignal'
   return undefined
 }
 
