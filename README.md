@@ -83,7 +83,7 @@ editor:             # optional: Positionen im grafischen Editor
   XD1: [0, 0]
 ```
 
-Felder je Komponente: `id`, `fest` (ID festschreiben), `typ`, `name`, `quelle`, `pole` (1|3), `phase` (L1|L2|L3), `kabel`, `produkt` (`hersteller`, `artikel`), `params`.
+Felder je Komponente: `id`, `fest` (ID festschreiben), `typ`, `name`, `quelle`, `pole` (1|3, beim Lasttrennschalter auch 2|4 mit geschaltetem N), `voreilend` (N-Kontakt voreilend, nur bei 2|4), `phase` (L1|L2|L3), `kabel`, `produkt` (`hersteller`, `artikel`), `params`.
 Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird automatisch einphasig angeschlossen.
 
 ### Typen (Bibliothek)
@@ -94,7 +94,7 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `hlak` | Hauptleiteranschlussklemme (Einspeisekette) | XD | querschnitt, nennstrom |
 | `zaehler` | Zähler | PG | art (Bezug/Zweirichtung/Erzeugung/Unterzähler), zaehlernummer, messkonzept |
 | `sls` | SLS-Schalter | FC | nennstrom |
-| `trennschalter` | Lasttrennschalter | QB | nennstrom, allpolig (N mitgeschaltet, voreilend ein / nacheilend aus; z. B. Netztrennung für Ersatzstrom) |
+| `trennschalter` | Lasttrennschalter | QB | nennstrom; Polzahl 1/2/3/4, auch 4-polig voreilend (z. B. Netztrennung für Ersatzstrom) |
 | `sicherung` | Schmelzsicherung | FC | nennstrom, bauform |
 | `rcd` | FI-Schutzschalter | FB | nennstrom, fehlerstrom, rcdtyp |
 | `ls` | Leitungsschutzschalter | FC | charakteristik, nennstrom |

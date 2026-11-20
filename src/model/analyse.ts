@@ -11,6 +11,10 @@ export interface Knoten {
   /** Leiter auf der Zuleitung dieser Komponente */
   leiter: LeiterName[]
   pole: 1 | 3
+  /** N wird mitgeschaltet (2-/4-poliges Schaltgerät) */
+  nGeschaltet?: boolean
+  /** N-Kontakt voreilend */
+  voreilend?: boolean
   phase?: Phase
   dc: boolean
   tiefe: number
@@ -139,13 +143,22 @@ export function analysiere(p: Projekt): Analyse {
     } else {
       const elternLeiter = e && !e.dc ? e.leiter : ALLE_AC
       const elternPhasen = elternLeiter.filter((l) => l.startsWith('L') && l.length === 2) as Phase[]
-      let pole: 1 | 3 = n.k.pole ?? n.def.pole
-      if (!n.def.poleWaehlbar && n.k.pole && n.k.pole !== n.def.pole) {
+      // 2-/4-polig = 1-/3-phasig mit geschaltetem N
+      const kPole = n.k.pole === 2 ? 1 : n.k.pole === 4 ? 3 : n.k.pole
+      const mitN = n.k.pole === 2 || n.k.pole === 4
+      if (mitN && !n.def.nSchaltbar) meldungen.push({ stufe: 'warnung', text: `${n.bmk}: ${n.def.label} kann den N nicht schalten`, id: n.k.id })
+      else if (mitN) {
+        n.nGeschaltet = true
+        n.voreilend = !!n.k.voreilend
+      }
+      if (n.k.voreilend && !mitN) meldungen.push({ stufe: 'info', text: `${n.bmk}: "voreilend" gilt nur bei 2- oder 4-polig`, id: n.k.id })
+      let pole: 1 | 3 = kPole ?? n.def.pole
+      if (!n.def.poleWaehlbar && kPole && kPole !== n.def.pole) {
         meldungen.push({ stufe: 'warnung', text: `${n.bmk}: ${n.def.label} ist immer ${n.def.pole}-polig`, id: n.k.id })
         pole = n.def.pole
       }
       if (pole === 3 && elternPhasen.length < 3) {
-        if (n.k.pole === 3 || !n.def.poleWaehlbar)
+        if (kPole === 3 || !n.def.poleWaehlbar)
           meldungen.push({ stufe: 'warnung', text: `${n.bmk}: dreiphasig, aber Zuleitung nur einphasig`, id: n.k.id })
         else meldungen.push({ stufe: 'info', text: `${n.bmk}: wird einphasig angeschlossen (Zuleitung einphasig)`, id: n.k.id })
         pole = 1

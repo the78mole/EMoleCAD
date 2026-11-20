@@ -25,8 +25,11 @@ export interface Komponente {
   typ: string
   name?: string
   quelle?: string
-  /** 1 = einphasig, 3 = dreiphasig. Wird ohne Angabe aus Bibliothek bzw. Quelle abgeleitet. */
-  pole?: 1 | 3
+  /** 1 = einphasig, 3 = dreiphasig. Wird ohne Angabe aus Bibliothek bzw. Quelle abgeleitet.
+   * Schaltgeräte mit schaltbarem N (Lasttrennschalter): 2 = L+N, 4 = L1–L3+N. */
+  pole?: 1 | 2 | 3 | 4
+  /** Bei 2-/4-polig: N-Kontakt voreilend (schließt vor den Außenleitern, öffnet nach ihnen) */
+  voreilend?: boolean
   /** Phase bei einphasigen Komponenten */
   phase?: Phase
   kabel?: Kabel

@@ -80,8 +80,12 @@ function komponenteAus(k: unknown, i: number): Komponente {
   if (k.quelle !== undefined && k.quelle !== null && k.quelle !== '') out.quelle = String(k.quelle)
   if (k.pole !== undefined) {
     const pole = Number(k.pole)
-    if (pole !== 1 && pole !== 3) throw new YamlFehler(`Komponente "${k.id}": pole muss 1 oder 3 sein`)
+    if (pole !== 1 && pole !== 2 && pole !== 3 && pole !== 4) throw new YamlFehler(`Komponente "${k.id}": pole muss 1, 2, 3 oder 4 sein`)
     out.pole = pole
+  }
+  if (k.voreilend !== undefined) {
+    if (typeof k.voreilend !== 'boolean') throw new YamlFehler(`Komponente "${k.id}": voreilend muss true oder false sein`)
+    if (k.voreilend) out.voreilend = true
   }
   if (k.fest !== undefined) {
     if (typeof k.fest !== 'boolean') throw new YamlFehler(`Komponente "${k.id}": fest muss true oder false sein`)
@@ -125,8 +129,18 @@ function komponenteAus(k: unknown, i: number): Komponente {
       else if (['false', 'nein', '0', ''].includes(t)) out.params[pd.key] = false
       else throw new YamlFehler(`Komponente "${k.id}": ${pd.key} muss true oder false sein`)
     }
+    // ältere Dateien: Lasttrennschalter mit params.allpolig -> 4-polig (bzw. 2-polig) voreilend
+    if (out.typ === 'trennschalter' && 'allpolig' in out.params) {
+      const v = String(out.params.allpolig).trim().toLowerCase()
+      delete out.params.allpolig
+      if (['true', 'ja', '1'].includes(v)) {
+        out.pole = out.pole === 1 || out.pole === 2 ? 2 : 4
+        out.voreilend = true
+      }
+    }
+    if (!Object.keys(out.params).length) delete out.params
     // ältere Dateien: Wechselrichter/SMGW hatten „hersteller“ als Typangabe
-    if (['wechselrichter', 'smgw'].includes(out.typ) && 'hersteller' in out.params && !('modell' in out.params)) {
+    if (out.params && ['wechselrichter', 'smgw'].includes(out.typ) && 'hersteller' in out.params && !('modell' in out.params)) {
       out.params.modell = out.params.hersteller
       delete out.params.hersteller
     }
@@ -144,6 +158,7 @@ export function toYaml(p: Projekt): string {
       if (k.name) o.name = k.name
       if (k.quelle) o.quelle = k.quelle
       if (k.pole) o.pole = k.pole
+      if (k.voreilend) o.voreilend = true
       if (k.phase) o.phase = k.phase
       if (k.kabel && Object.keys(k.kabel).length) o.kabel = k.kabel
       if (k.produkt && Object.keys(k.produkt).length) o.produkt = k.produkt
