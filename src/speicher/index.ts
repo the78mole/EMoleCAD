@@ -1,3 +1,5 @@
+// Interne Schlüssel behalten bewusst das alte Präfix `molecad.`, damit gespeicherte
+// Einstellungen und Projekte nach der Umbenennung in EMoleCAD erhalten bleiben.
 import { lokal } from './lokal'
 import type { DateiRef, Speicherort } from './types'
 
