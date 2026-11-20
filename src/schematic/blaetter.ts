@@ -1,5 +1,6 @@
 import type { Analyse, Knoten } from '../model/analyse'
-import { einspeiseKette, hatZaehler, zeichnePlan, type BlattBezug, type Plan, type PlanOptionen } from './render'
+import { planquadrat, type Vorlage } from './blatt'
+import { einspeiseKette, hatZaehler, VERWEIS_MUSTER, zeichnePlan, type BlattBezug, type Plan, type PlanOptionen } from './render'
 
 interface Teil {
   wurzeln: Knoten[]
@@ -169,18 +170,36 @@ export function blattTeilung(a: Analyse, o: Pick<PlanOptionen, 'anordnung' | 'ma
   return teile.map((t) => {
     const s = t.start ?? t.zu
     const leiter = (k: Knoten) => (k.dc ? 'DC' : k.pole === 3 ? '3/N/PE' : `${k.phase}/N/PE`)
-    const zufuehrung = t.zu && s ? { bmk: t.zu.bmk, blatt: ort.get(t.zu.k.id)!.blatt, leiter: t.nur?.some((c) => c.dc) ? 'DC' : leiter(s) } : undefined
+    const zufuehrung = t.zu && s ? { id: t.zu.k.id, bmk: t.zu.bmk, blatt: ort.get(t.zu.k.id)!.blatt, leiter: t.nur?.some((c) => c.dc) ? 'DC' : leiter(s) } : undefined
     const { sicht: v, gruppen } = sicht(a, t, teilVon)
     const verweis = new Map<string, string>()
     for (const [id, g] of gruppen) {
-      const ziel = ort.get(id)!.blatt
-      verweis.set(id, g.length > 1 ? `${g[0].bmk} … ${g[g.length - 1].bmk} → Blatt ${ziel}` : `${g[0].bmk} → Blatt ${ziel}`)
+      verweis.set(id, g.length > 1 ? `${g[0].bmk} ... ${g[g.length - 1].bmk}` : g[0].bmk)
     }
     return { sicht: v, bezug: { nr: nr.get(t)!, ort, zufuehrung, verweis, fortsetzung: t.nur ? t.zu!.k.id : undefined } }
   })
 }
 
-/** Zeichnet alle Blätter eines Plans (Zählerstränge und Folgeblätter) */
-export function zeichnePlaene(a: Analyse, o: PlanOptionen, startNr = 1): Plan[] {
-  return blattTeilung(a, o, startNr).map((b) => zeichnePlan(b.sicht, { ...o, blatt: b.bezug }))
+/**
+ * Zeichnet alle Blätter eines Plans (Zählerstränge und Folgeblätter). Querverweise erhalten die
+ * Blattangabe „S.<Blatt>-<Planquadrat>“ des Ziels (z.B. „S.3-B1“); ohne Vorlage bzw. bei einer
+ * Vorlage ohne Rahmen nur „S.<Blatt>“.
+ */
+export function zeichnePlaene(a: Analyse, o: PlanOptionen, startNr = 1, vorlage?: Vorlage): Plan[] {
+  const teile = blattTeilung(a, o, startNr)
+  const plaene = teile.map((b) => zeichnePlan(b.sicht, { ...o, blatt: b.bezug }))
+  const nachNr = new Map(teile.map((b, i) => [b.bezug?.nr ?? startNr + i, plaene[i]]))
+  return plaene.map((p, i) => {
+    const ort = teile[i].bezug?.ort
+    const inhalt = p.inhalt.replace(VERWEIS_MUSTER, (_, k: string) => {
+      const id = p.verweise![Number(k)]
+      const z = ort?.get(id)
+      if (!z) return ''
+      const ziel = nachNr.get(z.blatt)
+      const pos = ziel?.orte?.get(id)
+      const pq = pos && vorlage ? planquadrat(ziel!, o.modus, vorlage, pos.x, pos.y) : undefined
+      return `S.${z.blatt}${pq ? '-' + pq : ''}`
+    })
+    return { ...p, inhalt }
+  })
 }

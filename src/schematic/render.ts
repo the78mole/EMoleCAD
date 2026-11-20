@@ -29,8 +29,8 @@ export interface BlattBezug {
   /** Blatt und BMK jeder Komponente des Plansatzes */
   ort: Map<string, { blatt: number; bmk: string }>
   /** Komponente auf einem anderen Blatt, von der dieses Blatt gespeist wird */
-  zufuehrung?: { bmk: string; blatt: number; leiter: string }
-  /** Beschriftung der Verweise auf andere Blätter (je Verweis-Komponente) */
+  zufuehrung?: { id: string; bmk: string; blatt: number; leiter: string }
+  /** BMK-Beschriftung der Verweise auf andere Blätter (je Verweis-Komponente), ohne Blattangabe */
   verweis?: Map<string, string>
   /** Folgeblatt: diese Komponente steht auf einem anderen Blatt, ihre Abgänge gehen hier weiter */
   fortsetzung?: string
@@ -40,6 +40,26 @@ export interface Plan {
   inhalt: string
   breite: number
   hoehe: number
+  /** Lage der auf diesem Blatt gezeichneten Komponenten (Planmaß), Ziel für Querverweise */
+  orte?: Map<string, { x: number; y: number }>
+  /** Ziele der Querverweise; im Inhalt steht dafür ein Platzhalter (siehe VERWEIS_MUSTER) */
+  verweise?: string[]
+}
+
+/** Platzhalter für die Blattangabe eines Querverweises („S.2-B3“); wird ersetzt, sobald alle Blätter
+ *  gezeichnet sind und die Planquadrate der Ziele feststehen */
+// oxlint-disable-next-line no-control-regex -- Platzhalter bzw. Latin-1-Bereich bewusst
+export const VERWEIS_MUSTER = /\u0001(\d+)\u0001/g
+
+/** Sammelt Querverweise und die Lage der Komponenten eines Blatts */
+class Verweise {
+  ziele: string[] = []
+  orte = new Map<string, { x: number; y: number }>()
+  /** Platzhalter für die Blattangabe der Komponente `id` */
+  ziel(id: string) {
+    this.ziele.push(id)
+    return `\u0001${this.ziele.length - 1}\u0001`
+  }
 }
 
 const D = 4 // Leiterabstand allpolig
@@ -92,6 +112,7 @@ function ausgaenge(n: Knoten): LeiterName[] {
 
 export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const svg = new Svg()
+  const vw = new Verweise()
   const allp = o.modus === 'allpolig'
   const hager = (o.anordnung ?? 'hager') === 'hager'
   const H = allp ? 42 : 32
@@ -103,8 +124,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const alle = [...a.knoten.values()].filter((n) => !n.def.potential)
   if (!alle.length && a.potential.length) {
     // nur Potentialausgleichsschienen vorhanden
-    const pa = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 })
-    return { inhalt: svg.toString(), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4 }
+    const pa = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 }, vw)
+    return { inhalt: svg.toString(), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4, orte: vw.orte, verweise: vw.ziele }
   }
   if (!alle.length) {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
@@ -357,19 +378,19 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       // Fortsetzung der Abgänge eines Geräts von einem anderen Blatt: nur die Leitung, kein Symbol
       for (const le of allp ? l.aus : (['L1'] as LeiterName[])) svg.linie(cx(l, le, l.aus), l.symTop, cx(l, le, l.aus), l.symBot, { farbe: farbe(le) })
       if (!eltern && l.kette && bezug.zufuehrung) {
-        zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+        zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung, vw)
         if (!allp) leiterZahl(svg, { ...l, aufwaerts: true }, yNetz, !!o.farbig)
       }
       continue
     }
     if (fremd(n.k.id)) {
       if (!allp && eltern) leiterZahl(svg, l, eltern.busY.L1, !!o.farbig)
-      verweisPfeil(svg, l, allp, cx, bezug!.verweis?.get(n.k.id) ?? `${n.bmk} → Blatt ${bezug!.ort.get(n.k.id)!.blatt}`)
+      verweisPfeil(svg, l, allp, cx, bezug!.verweis?.get(n.k.id) ?? n.bmk, vw.ziel(n.k.id))
       continue
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
     else if (!eltern && l.kette && bezug?.zufuehrung) {
-      zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+      zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung, vw)
       if (!allp) leiterZahl(svg, { ...l, aufwaerts: true }, yNetz, !!o.farbig)
     }
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
@@ -391,8 +412,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   // Kanal unter den Endverbrauchern; ohne Tabelle unter deren senkrechter Beschriftung
   const textUnten = mitTabelle ? 0 : Math.max(0, ...[...eigene.values()].filter((l) => !l.n.kinder.length && Math.abs(l.symTop - unterste) < 0.01).map((l) => Math.max((l.n.k.name ?? l.n.def.label).length, kabelText(l.n).length) * 1.25 + 4))
   const kanal = { verb: kanalVerb, y0: unterste + SYM_H + 1 + textUnten, unterste, mitTabelle }
-  const daten = datenLinien(svg, eigene, o, allp, cx, kanal)
-  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 })
+  const daten = datenLinien(svg, eigene, o, allp, cx, vw, kanal)
+  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 }, vw)
+  for (const l of eigene.values()) vw.orte.set(l.n.k.id, { x: l.x, y: (l.symTop + l.symBot) / 2 })
   breite = Math.max(breite, pa.rechts + 4, daten.rechts + 4)
 
   let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4, daten.unten + 4)
@@ -400,7 +422,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined && !fremd(l.n.k.id)).sort((p, q) => p.slotX0! - q.slotX0!)
     if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, Math.max(yNetz + 12, daten.unten + 3), trennX) + 4
   }
-  return { inhalt: svg.toString(), breite, hoehe }
+  return { inhalt: svg.toString(), breite, hoehe, orte: vw.orte, verweise: vw.ziele }
 }
 
 /** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
@@ -428,8 +450,13 @@ export function einspeiseKette(w: Knoten): Knoten[] {
 
 // ---------- Verweise auf andere Blätter ----------
 
-/** Abgang auf ein anderes Blatt: Leitung endet in einem Pfeil mit Ziel-BMK und Blatt */
-function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, text: string) {
+/** Senkrechte Schrift (Drehung -90°) liegt links ihrer Grundlinie; Versatz der Grundlinie,
+ *  damit die Zeile mittig auf `x` steht */
+const MITTE_SENKRECHT = 0.36
+
+/** Abgang auf ein anderes Blatt: Leitung endet in einem Pfeil; dahinter in Pfeilrichtung die
+ *  Blattangabe des Ziels („S.2-B3“, fett, auf der Leitungsachse) und rechts daneben die BMK */
+function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, bmk: string, ziel: string) {
   const xs = allp ? l.n.leiter.map((le) => cx(l, le)) : [l.x]
   const y = l.aufwaerts ? l.symBot : l.symTop
   const richtung = l.aufwaerts ? -1 : 1
@@ -437,16 +464,21 @@ function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, text: string) {
   const spitze = y + richtung * 5
   svg.linie(l.x, y, l.x, spitze - richtung * 2, { breite: 0.35 })
   svg.pfad(`M ${l.x} ${spitze} L ${l.x - 1} ${spitze - richtung * 2} L ${l.x + 1} ${spitze - richtung * 2} Z`, { fuellung: '#000', breite: 0.2 })
-  svg.text(l.x + 0.8, spitze + richtung * 1, text, { groesse: 2.2, fett: true, drehung: -90, anker: l.aufwaerts ? 'start' : 'end' })
+  // Text beginnt mit Abstand hinter der Pfeilspitze und läuft vom Pfeil weg
+  const ty = spitze + richtung * 1.2
+  const anker = l.aufwaerts ? 'start' : 'end'
+  const gr = 2.2
+  svg.text(l.x + gr * MITTE_SENKRECHT, ty, ziel, { groesse: gr, fett: true, drehung: -90, anker })
+  svg.text(l.x + gr * MITTE_SENKRECHT + 2.6, ty, bmk, { groesse: 1.9, drehung: -90, anker })
 }
 
 /** Zuführung von einem anderen Blatt am Fuß der Einspeisekette */
-function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: { bmk: string; blatt: number; leiter: string }) {
+function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: { id: string; bmk: string; blatt: number; leiter: string }, vw: Verweise) {
   const xs = allp ? l.n.leiter.map((le) => cx(l, le)) : [l.x]
   if (xs.length > 1) svg.linie(Math.min(...xs), yNetz, Math.max(...xs), yNetz, { breite: 0.35 })
   const sx = Math.min(...xs)
   svg.pfad(`M ${l.x} ${yNetz - 2.5} L ${l.x - 1} ${yNetz - 0.5} L ${l.x + 1} ${yNetz - 0.5} Z`, { fuellung: '#000', breite: 0.2 })
-  svg.text(sx - 3, yNetz + 3.5, `von ${z.bmk} (Blatt ${z.blatt})`, { groesse: 2.2, fett: true })
+  svg.text(sx - 3, yNetz + 3.5, `von ${z.bmk}  ${vw.ziel(z.id)}`, { groesse: 2.2, fett: true })
   svg.text(sx - 3, yNetz + 6.5, z.leiter, { groesse: 2 })
 }
 
@@ -480,7 +512,7 @@ interface Kanal {
 }
 
 /** Zeichnet die Informationsverbindungen; gibt die rechteste und unterste belegte Position zurück */
-function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, kanal?: Kanal): { rechts: number; unten: number } {
+function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, vw: Verweise, kanal?: Kanal): { rechts: number; unten: number } {
   const alleVerb = o.daten ?? []
   let rechts = 0
   let unten = 0
@@ -533,7 +565,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     const a = nachId.get(d.von), b = nachId.get(d.nach)
     const fern = !a ? d.von : !b ? d.nach : undefined
     const ziel = fern ? o.blatt?.ort.get(fern) : undefined
-    return (a || b) && ziel ? { l: (a ?? b)!, ziel } : undefined
+    return (a || b) && ziel ? { l: (a ?? b)!, ziel, id: fern! } : undefined
   }
   // Rechtes Ende der Beschriftungen in der Einspeisekette (Schätzung über die Zeichenzahl)
   const ketteTextEnde = Math.max(0, ...[...lagen.values()].filter((l) => l.kette).map((l) => {
@@ -557,7 +589,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     // Gegenstelle auf einem anderen Blatt: kurzer Stich mit Verweis
     const verweis = verweisZiel(d)
     if (verweis) {
-      const { l, ziel } = verweis
+      const { l, ziel, id } = verweis
       const nr = stichNr.get(l) ?? 0
       stichNr.set(l, nr + 1)
       const senkrecht = seite(l) === 'oben' || seite(l) === 'unten'
@@ -569,9 +601,11 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       const ende = [senkrecht ? Math.max(q.s[0], rechtsterStich) + 3 : q.s[0] + 4, q.s[1]]
       svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
       svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
-      const text = `${d.art ? d.art + ' ' : ''}→ ${ziel.bmk} (Blatt ${ziel.blatt})`
-      svg.text(ende[0] + 0.8, ende[1] + 0.6, text, { groesse: 1.7, farbe })
-      rechts = Math.max(rechts, ende[0] + 0.8 + text.length * 0.9)
+      const text = `${d.art ? d.art + ': ' : ''}${ziel.bmk}  `
+      const ref = vw.ziel(id)
+      svg.text(ende[0] + 0.8, ende[1] + 0.6, text + ref, { groesse: 1.7, farbe })
+      // Blattangabe „S.12-E8“ hat höchstens 7 Zeichen
+      rechts = Math.max(rechts, ende[0] + 0.8 + (text.length + 7) * 0.9)
       return
     }
     if (!a || !b || a === b) return
@@ -693,7 +727,7 @@ const PA_FARBE = '#2e9e3e'
 
 /** Zeichnet Potentialausgleichsschienen und ihre Verbindungen (eigene Verkabelung, getrennt vom Strompfad).
  *  Gibt die unterste belegte y-Position zurück. */
-function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }): { unten: number; rechts: number } {
+function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }, vw: Verweise): { unten: number; rechts: number } {
   const liste = o.pa ?? []
   if (!a.potential.length && !liste.length) return { unten: 0, rechts: 0 }
   const fa = o.farbig ? PA_FARBE : '#000'
@@ -732,7 +766,9 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const verb = liste.filter((d) => d.von === id || d.nach === id)
     const partner = verb.map((d) => ({ d, l: nachId.get(d.von === id ? d.nach : d.von) })).filter((v): v is { d: PaVerbindung; l: Lage } => !!v.l)
     // Partner auf anderen Blättern
-    const fern = verb.map((d) => o.blatt?.ort.get(d.von === id ? d.nach : d.von)).filter((z, i): z is { blatt: number; bmk: string } => !!z && !nachId.has(verb[i].von === id ? verb[i].nach : verb[i].von) && z.blatt !== o.blatt!.nr)
+    const fern = verb.map((d) => d.von === id ? d.nach : d.von)
+      .filter((pid) => !nachId.has(pid) && o.blatt?.ort.has(pid) && o.blatt.ort.get(pid)!.blatt !== o.blatt.nr)
+      .map((pid) => ({ id: pid, bmk: o.blatt!.ort.get(pid)!.bmk }))
     const ans = partner.map((v) => ({ ...v, a: anschluss(v.l) }))
     // Schienenhöhe: unter allen Anschlüssen, Geräte der Einspeisekette möglichst waagerecht anfahren
     const kette = ans.filter((v) => v.l.kette).map((v) => v.a.p[1])
@@ -752,7 +788,7 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
       const fx = fernX[i]
       svg.linie(fx, y, fx, y + 5, stil)
       svg.pfad(`M ${fx} ${y + 7} L ${fx - 0.8} ${y + 5} L ${fx + 0.8} ${y + 5} Z`, { farbe: fa, fuellung: fa, breite: 0.1 })
-      svg.text(fx + 0.8, y + 8, `${z.bmk} (Blatt ${z.blatt})`, { groesse: 1.6, farbe: fa, drehung: -90, anker: 'end' })
+      svg.text(fx + 1.6 * MITTE_SENKRECHT, y + 8, `${z.bmk}  ${vw.ziel(z.id)}`, { groesse: 1.6, farbe: fa, drehung: -90, anker: 'end' })
     })
     for (const v of senk) leitung(v.a, y, querschnitt(v.d))
     for (const v of direkt) {
@@ -777,6 +813,7 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
       svg.text(tx, y + 5, erder + (p.querschnitt ? `, ${p.querschnitt} mm²` : ''), { groesse: 1.6, farbe: '#444' })
     }
     schienen.set(id, { x0, x1, y })
+    vw.orte.set(id, { x: (x0 + x1) / 2, y })
     // Beschriftung rechts der Schiene (ca. 0,95 mm je Zeichen bei 1,8 mm Schrift)
     const texte = [pas.k.name ?? 'Potentialausgleichsschiene', erder + (p.querschnitt ? `, ${p.querschnitt} mm²` : '')]
     rechts = Math.max(rechts, tx + Math.max(...texte.map((t) => t.length)) * 0.95)
@@ -807,7 +844,7 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const y = q.p[1] + 6
     leitung(q, y, querschnitt(d))
     svg.pfad(`M ${q.x} ${y + 2} L ${q.x - 0.8} ${y} L ${q.x + 0.8} ${y} Z`, { farbe: fa, fuellung: fa, breite: 0.1 })
-    svg.text(q.x + 1.2, y + 2, `${z.bmk} (Blatt ${z.blatt})`, { groesse: 1.6, farbe: fa })
+    svg.text(q.x + 1.2, y + 2, `${z.bmk}  ${vw.ziel(fern)}`, { groesse: 1.6, farbe: fa })
     unten = Math.max(unten, y + 3)
     rechts = Math.max(rechts, q.x + 16)
   }

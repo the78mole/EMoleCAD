@@ -60,7 +60,7 @@ export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: Darstellu
   const plaene: { m: Modus; plan: ReturnType<typeof zeichnePlaene>[number] }[] = []
   for (const m of modi) {
     const opt = { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, maxAbgaenge: maxAbgaenge(d), daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }
-    for (const plan of zeichnePlaene(analyse, opt, plaene.length + 1)) plaene.push({ m, plan })
+    for (const plan of zeichnePlaene(analyse, opt, plaene.length + 1, v)) plaene.push({ m, plan })
   }
   return plaene.map(({ m, plan }, i) => erzeugeBlatt(plan, projekt, m, v, i + 1, plaene.length, d.farbig))
 }
