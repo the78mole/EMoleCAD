@@ -21,7 +21,7 @@ function eingebettet() {
 }
 export const fsApi = typeof w.showOpenFilePicker === 'function' && typeof w.showSaveFilePicker === 'function' && !eingebettet()
 
-const TYPEN = [{ description: 'MoleCAD-Projekt (YAML)', accept: { 'text/yaml': ['.yaml', '.yml'] } }]
+const TYPEN = [{ description: 'EMoleCAD-Projekt (YAML)', accept: { 'text/yaml': ['.yaml', '.yml'] } }]
 const abbruch = (e: unknown) => (e as Error)?.name === 'AbortError'
 /** Picker vom Browser blockiert (iframe, Berechtigungsrichtlinie) → auf Upload/Download ausweichen */
 const blockiert = (e: unknown) => ['SecurityError', 'NotAllowedError'].includes((e as Error)?.name)

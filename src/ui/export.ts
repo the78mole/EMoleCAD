@@ -20,6 +20,7 @@ export async function exportierePdf(blaetter: Blatt[], dateiname: string) {
   } finally {
     halter.remove()
   }
+  doc.setProperties({ creator: 'EMoleCAD' })
   doc.save(dateiname)
 }
 

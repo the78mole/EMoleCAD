@@ -84,7 +84,7 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
     feld(x0 + 110, y0 + 24, 20, 12, 'Rev.', info.revision ?? '', 2.6)
     feld(x0 + 130, y0 + 24, 25, 12, 'Netz', `${p.netz.form}`, 2.6)
     feld(x0 + 155, y0 + 24, 25, 12, 'Blatt', `${blattNr} / ${blattGesamt}`, 2.6)
-    s.text(x0 - 2, H - U - 1.5, 'erstellt mit MoleCAD', { groesse: 1.8, anker: 'end', farbe: '#999' })
+    s.text(x0 - 2, H - U - 1.5, 'erstellt mit EMoleCAD', { groesse: 1.8, anker: 'end', farbe: '#999' })
   } else if (v.schriftfeld === 'kompakt') {
     sfHoehe = 10
     const y0 = H - U - sfHoehe

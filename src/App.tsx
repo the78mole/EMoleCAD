@@ -164,7 +164,7 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [geaendert])
   useEffect(() => {
-    document.title = `${geaendert ? '• ' : ''}${datei?.name ?? projekt.projekt.titel ?? 'Unbenannt'} – MoleCAD`
+    document.title = `${geaendert ? '• ' : ''}${datei?.name ?? projekt.projekt.titel ?? 'Unbenannt'} – EMoleCAD`
   }, [geaendert, datei, projekt.projekt.titel])
 
   const ziehen = (e: React.PointerEvent) => {
@@ -187,7 +187,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="kopf">
-        <div className="logo">Mole<span>CAD</span></div>
+        <div className="logo">EMole<span>CAD</span></div>
         <input
           className="titel"
           value={projekt.projekt.titel ?? ''}

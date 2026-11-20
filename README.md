@@ -26,7 +26,7 @@ npm run build        # statischer Build nach dist/
 npm run build:single # eine einzige HTML-Datei nach dist-single/ (offline nutzbar)
 ```
 
-Ohne Installation: `molecad.html` direkt im Browser öffnen.
+Ohne Installation: `emolecad.html` direkt im Browser öffnen.
 
 ## Bedienung
 
