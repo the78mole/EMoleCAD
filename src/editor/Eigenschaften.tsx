@@ -139,7 +139,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
           )
         if (pd.art === 'auswahl' && pd.frei) {
           const text = wert === undefined ? '' : String(wert)
-          const istEigen = text !== '' && !pd.optionen!.includes(text)
+          const istEigen = text !== '' && !(pd.optionen ?? []).includes(text)
           const feld = istEigen || freiFelder.includes(pd.key)
           const optionen = paramOptionen(pd, k.typ, projekt.komponenten)
           return (

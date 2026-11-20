@@ -165,6 +165,10 @@ describe('Verwendung mit Freitext', () => {
     expect(opt.slice(-2)).toEqual(['Aquarium', 'Sauna'])
     expect(opt.filter((o) => o === 'Sauna')).toHaveLength(1)
     expect(VERWENDUNG.Reserve).toBe('XD')
+    const bmk = typDef('verbraucher').bmkAus!
+    expect(bmk({ verwendung: 'constructor' })).toBe('XD')
+    expect(bmk({ verwendung: 'Sauna' })).toBe('XD')
+    expect(bmk({ verwendung: 'Beleuchtung' })).toBe('EA')
   })
 })
 

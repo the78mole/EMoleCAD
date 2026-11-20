@@ -225,7 +225,7 @@ export const BIBLIOTHEK: TypDef[] = [
       { key: 'verwendung', label: 'Verwendung', art: 'auswahl', frei: true, optionen: Object.keys(VERWENDUNG), standard: 'Steckdosen' },
       { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kW', standard: '' },
     ],
-    bmkAus: (p) => VERWENDUNG[String(p.verwendung)] ?? 'XD',
+    bmkAus: (p) => (Object.hasOwn(VERWENDUNG, String(p.verwendung)) ? VERWENDUNG[String(p.verwendung)] : 'XD'),
     kurz: (p) => (p.leistung ? `${p.leistung} kW` : ''),
   },
   {
