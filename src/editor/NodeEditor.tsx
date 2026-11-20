@@ -1,6 +1,6 @@
 import {
-  Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, ViewportPortal, applyNodeChanges, useReactFlow,
-  type Connection, type Edge, type NodeChange, type EdgeChange, type IsValidConnection,
+  Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, ViewportPortal, NodeChangeset, useReactFlow,
+  type Connection, type Edge, type EdgeChangeset, type IsValidConnection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -131,7 +131,8 @@ function Innen({ projekt, analyse, onChange }: Props) {
   const pRef = useRef(projekt)
   useEffect(() => { pRef.current = projekt }, [projekt])
 
-  const onNodesChange = useCallback((changes: NodeChange<KomponentenNodeTyp>[]) => {
+  const onNodesChange = useCallback((changeset: NodeChangeset<KomponentenNodeTyp>) => {
+    const changes = changeset.toArray()
     const loeschen = changes.filter((c) => c.type === 'remove').map((c) => c.id)
     if (loeschen.length) {
       // sofort übernehmen, damit das gleichzeitige Entfernen der Kanten auf dem neuen Stand aufsetzt
@@ -156,10 +157,11 @@ function Innen({ projekt, analyse, onChange }: Props) {
     } else if (zug.length) {
       for (const c of zug) gerastet.current.delete(c.id)
     }
-    setNodes((ns) => applyNodeChanges(changes, ns))
+    const geaendert = new NodeChangeset(changes)
+    setNodes((ns) => geaendert.applyTo(ns))
   }, [onChange, rf])
 
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+  const onEdgesChange = useCallback((changes: EdgeChangeset<Edge>) => {
     let p = pRef.current
     for (const c of changes) {
       if (c.type !== 'remove') continue
@@ -236,7 +238,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
       if (Math.abs(el.clientWidth - breite) < 80) return
       breite = el.clientWidth
       clearTimeout(t)
-      t = setTimeout(() => rf.fitView({ padding: 0.15, duration: 200 }), 120)
+      t = setTimeout(() => rf.fitView({ padding: '6.5%', duration: 200 }), 120)
     })
     ro.observe(el)
     return () => { ro.disconnect(); clearTimeout(t) }
@@ -244,7 +246,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
 
   const anordnen = () => {
     onChange({ ...pRef.current, editor: autoLayout(pRef.current) })
-    setTimeout(() => rf.fitView({ padding: 0.15, duration: 300 }), 50)
+    setTimeout(() => rf.fitView({ padding: '6.5%', duration: 300 }), 50)
   }
 
   return (
@@ -264,7 +266,8 @@ function Innen({ projekt, analyse, onChange }: Props) {
           onPaneClick={() => setAuswahl(null)}
           deleteKeyCode={['Delete', 'Backspace']}
           fitView
-          fitViewOptions={{ padding: 0.15 }}
+          fitViewOptions={{ padding: '6.5%' }}
+          forceColorMode="light"
           minZoom={0.15}
           proOptions={{ hideAttribution: true }}
         >
