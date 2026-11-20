@@ -151,7 +151,8 @@ export function analysiere(p: Projekt): Analyse {
         n.nGeschaltet = true
         n.voreilend = !!n.k.voreilend
       }
-      if (n.k.voreilend && !mitN) meldungen.push({ stufe: 'info', text: `${n.bmk}: "voreilend" gilt nur bei 2- oder 4-polig`, id: n.k.id })
+      if (n.k.voreilend && !mitN)
+        meldungen.push({ stufe: 'warnung', text: n.def.nSchaltbar ? `${n.bmk}: "voreilend" ohne geschalteten N – Polzahl auf 2 oder 4 setzen` : `${n.bmk}: ${n.def.label} kann keinen voreilenden N haben`, id: n.k.id })
       let pole: 1 | 3 = kPole ?? n.def.pole
       if (!n.def.poleWaehlbar && kPole && kPole !== n.def.pole) {
         meldungen.push({ stufe: 'warnung', text: `${n.bmk}: ${n.def.label} ist immer ${n.def.pole}-polig`, id: n.k.id })

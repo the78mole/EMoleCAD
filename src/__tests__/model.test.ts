@@ -293,6 +293,10 @@ komponenten:
     expect(aus.komponenten[1].params).toBeUndefined()
     expect(() => parseYaml(yaml(', params: { allpolig: vielleicht }'))).toThrow(YamlFehler)
   })
+  it('warnt bei "voreilend" ohne 2-/4-polig', () => {
+    const p = parseYaml(yaml(', voreilend: true'))
+    expect(analysiere(p).meldungen.some((m) => m.id === 'QB1' && m.stufe === 'warnung' && m.text.includes('voreilend'))).toBe(true)
+  })
   it('warnt, wenn ein Gerät den N nicht schalten kann', () => {
     const p = parseYaml(yaml('').replace('typ: ls, quelle: QB1, pole: 3', 'typ: ls, quelle: QB1, pole: 4'))
     expect(analysiere(p).meldungen.some((m) => m.id === 'FC1' && m.text.includes('N nicht schalten'))).toBe(true)
