@@ -243,3 +243,41 @@ potentialausgleich:
     expect(zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz }).inhalt).toContain('-PAS1')
   })
 })
+
+describe('Lasttrennschalter allpolig', () => {
+  const yaml = (extra: string) => `projekt: { titel: T }
+netz: { form: TN-C-S }
+komponenten:
+  - { id: XD1, typ: hausanschluss }
+  - { id: QB1, typ: trennschalter, quelle: XD1${extra} }
+  - { id: FC1, typ: ls, quelle: QB1, pole: 3 }
+`
+  const FARBE = { L1: '#7a4a1e', L2: '#111111', L3: '#7d7d7d', N: '#1f6fd1' }
+  // Trennerkontakte (Kreis am festen Kontakt) je Leiterfarbe
+  const kontakte = (inhalt: string, farbe: string) => (inhalt.match(new RegExp(`<circle[^>]*stroke="${farbe}"`, 'g')) ?? []).length
+  // Kennzeichnung voreilend/nacheilend: zwei dünne Striche (0.3) am N-Schaltstück
+  const marken = (inhalt: string) => (inhalt.match(new RegExp(`<line[^>]*stroke="${FARBE.N}" stroke-width="0.3"`, 'g')) ?? []).length
+  const plan = (p: ReturnType<typeof parseYaml>) => zeichnePlan(analysiere(p), { modus: 'allpolig', farbig: true, netz: p.netz }).inhalt
+
+  it('ist standardmäßig 3-polig, N wird nicht geschaltet', () => {
+    const inhalt = plan(parseYaml(yaml('')))
+    for (const le of ['L1', 'L2', 'L3'] as const) expect(kontakte(inhalt, FARBE[le])).toBe(1)
+    expect(kontakte(inhalt, FARBE.N)).toBe(0)
+    expect(marken(inhalt)).toBe(0)
+  })
+  it('schaltet bei allpolig den N mit, voreilend/nacheilend gekennzeichnet', () => {
+    const p = parseYaml(yaml(', params: { nennstrom: 63, allpolig: true }'))
+    expect(p.komponenten[1].params!.allpolig).toBe(true)
+    expect(parseYaml(toYaml(p))).toEqual(p)
+    const inhalt = plan(p)
+    for (const le of ['L1', 'L2', 'L3', 'N'] as const) expect(kontakte(inhalt, FARBE[le])).toBe(1)
+    expect(marken(inhalt)).toBe(2)
+    expect(inhalt).toContain('63A allpolig')
+  })
+  it('liest "false" in Anführungszeichen als false und lehnt Unsinn ab', () => {
+    const p = parseYaml(yaml(', params: { allpolig: "false" }'))
+    expect(p.komponenten[1].params!.allpolig).toBe(false)
+    expect(kontakte(plan(p), FARBE.N)).toBe(0)
+    expect(() => parseYaml(yaml(', params: { allpolig: vielleicht }'))).toThrow(YamlFehler)
+  })
+})

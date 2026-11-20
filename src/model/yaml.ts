@@ -1,4 +1,5 @@
 import YAML from 'yaml'
+import { TYPEN } from './library'
 import type { Datenverbindung, Komponente, PaVerbindung, Projekt, ParamWert } from './types'
 
 export class YamlFehler extends Error {
@@ -113,6 +114,16 @@ function komponenteAus(k: unknown, i: number): Komponente {
     for (const [pk, pv] of Object.entries(k.params)) {
       if (pv === null || pv === undefined) continue
       out.params[pk] = (typeof pv === 'object' ? String(pv) : pv) as ParamWert
+    }
+    // Ja/Nein-Parameter als echte Booleans (auch in Anführungszeichen geschriebenes "false")
+    for (const pd of TYPEN[out.typ]?.params ?? []) {
+      if (pd.art !== 'bool' || !(pd.key in out.params)) continue
+      const v = out.params[pd.key]
+      if (typeof v === 'boolean') continue
+      const t = String(v).trim().toLowerCase()
+      if (['true', 'ja', '1'].includes(t)) out.params[pd.key] = true
+      else if (['false', 'nein', '0', ''].includes(t)) out.params[pd.key] = false
+      else throw new YamlFehler(`Komponente "${k.id}": ${pd.key} muss true oder false sein`)
     }
     // ältere Dateien: Wechselrichter/SMGW hatten „hersteller“ als Typangabe
     if (['wechselrichter', 'smgw'].includes(out.typ) && 'hersteller' in out.params && !('modell' in out.params)) {
