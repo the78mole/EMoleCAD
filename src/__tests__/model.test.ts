@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BEISPIEL_YAML } from '../model/beispiel'
 import { parseYaml, toYaml, YamlFehler } from '../model/yaml'
+import { typDef } from '../model/library'
 import { analysiere } from '../model/analyse'
 import { datenVerbinden, hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren, paTrennen, paVerbinden } from '../model/ops'
 import { zeichnePlan } from '../schematic/render'
@@ -318,5 +319,32 @@ komponenten:
     expect(a.meldungen.filter((m) => m.text.includes('Datenverbindung'))).toEqual([])
     const plan = zeichnePlan(a, { modus: 'einpolig', farbig: true, netz: q.netz, daten: q.datenverbindungen })
     expect(plan.inhalt).toContain('Steuersignal')
+  })
+  it('hat einen Datenanschluss in der Bibliothek', () => {
+    expect(typDef('trennschalter').daten).toBe(true)
+  })
+  it('führt die Datenleitung rechts an der Beschriftung der Einspeisekette vorbei', () => {
+    const p = parseYaml(`projekt: { titel: T }
+netz: { form: TN-C-S }
+komponenten:
+  - { id: XD1, typ: hausanschluss }
+  - { id: QB1, typ: trennschalter, quelle: XD1, name: Fronius Backup Controller }
+  - { id: PG1, typ: zaehler, quelle: QB1 }
+  - { id: FC1, typ: ls, quelle: PG1 }
+  - { id: TB1, typ: wechselrichter, quelle: PG1 }
+datenverbindungen:
+  - { von: TB1, nach: QB1, art: Steuersignal }
+`)
+    const inhalt = zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, daten: p.datenverbindungen }).inhalt
+    // rechtes Ende der Namenszeilen von QB1 (Schätzung wie im Renderer: ca. 1 mm je Zeichen)
+    const zeilen = [...inhalt.matchAll(/<text x="([\d.]+)"[^>]*>(Fronius Backup|Controller)<\/text>/g)]
+    expect(zeilen.length).toBe(2)
+    const textEnde = Math.max(...zeilen.map((m) => Number(m[1]) + m[2].length))
+    // Datenleitung: Pfad mit Strichpunktmuster, alle Knickpunkte rechts der Beschriftung (außer dem Anschluss an QB1)
+    const pfad = [...inhalt.matchAll(/<path d="([^"]+)"[^>]*stroke-dasharray="1.6 0.6 0.3 0.6"/g)].map((m) => m[1])
+    expect(pfad.length).toBe(1)
+    const xs = [...pfad[0].matchAll(/[ML] ([\d.]+) /g)].map((m) => Number(m[1]))
+    const senkrechte = xs.slice(1, -1)
+    expect(Math.min(...senkrechte)).toBeGreaterThan(textEnde)
   })
 })
