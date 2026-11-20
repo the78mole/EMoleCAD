@@ -1060,7 +1060,7 @@ function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, 
 }
 
 /** Schaltzeichen der Verbraucher nach DIN EN 60617 je Verwendung */
-export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'backofen' | 'kuehl' | 'gefrier' | 'wasch' | 'trockner' | 'spuel' | 'motor' | 'geraet' {
+export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'backofen' | 'kuehl' | 'gefrier' | 'wasch' | 'trockner' | 'spuel' | 'motor' | 'reserve' | 'geraet' {
   const v = String(n.k.params?.verwendung ?? '').toLowerCase()
   if (v.startsWith('steckdose')) return 'steckdose'
   if (v.startsWith('beleuchtung') || v.startsWith('licht')) return 'leuchte'
@@ -1072,6 +1072,7 @@ export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'b
   if (v.startsWith('wäschetrockner') || v.startsWith('trockner')) return 'trockner'
   if (v.startsWith('spül')) return 'spuel'
   if (v.startsWith('motor')) return 'motor'
+  if (v.startsWith('reserve')) return 'reserve'
   return 'geraet'
 }
 
@@ -1102,6 +1103,11 @@ function verbraucherZeichen(n: Knoten, svg?: Svg, x = 0, y0 = 0, innen = false):
       svg?.linie(x - 2.5, m - 2.5, x + 2.5, m + 2.5)
       svg?.linie(x - 2.5, m + 2.5, x + 2.5, m - 2.5)
       return { unten: 10 }
+    }
+    case 'reserve': {
+      // Reserve-Stromkreis: offenes Leitungsende ohne Verbraucher
+      zul(5)
+      return { unten: 6 }
     }
     case 'motor': {
       const m = y0 + 7

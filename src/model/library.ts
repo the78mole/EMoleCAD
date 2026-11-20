@@ -11,6 +11,8 @@ export interface ParamDef {
   art: 'zahl' | 'text' | 'auswahl' | 'bool'
   einheit?: string
   optionen?: string[]
+  /** Bei 'auswahl': auch Freitext erlaubt (im Projekt verwendete Werte erscheinen in der Auswahl) */
+  frei?: boolean
   standard?: ParamWert
 }
 
@@ -62,6 +64,24 @@ export const VERWENDUNG: Record<string, string> = {
   'Wäschetrockner': 'EB',
   'Spülmaschine': 'EB',
   'Elektrogerät': 'EB',
+  Reserve: 'XD',
+}
+
+/**
+ * Auswahl-Optionen eines Parameters: die festen Optionen, bei Freitext-Parametern ergänzt um die
+ * im Projekt bei gleichartigen Komponenten bereits verwendeten Werte (wandern so mit dem YAML mit).
+ */
+export function paramOptionen(pd: ParamDef, typ: string, komponenten: { typ: string; params?: Record<string, ParamWert> }[]): string[] {
+  const fest = pd.optionen ?? []
+  if (!pd.frei) return fest
+  const eigene = new Set<string>()
+  for (const k of komponenten) {
+    const w = k.typ === typ ? k.params?.[pd.key] : undefined
+    if (w === undefined || w === '') continue
+    const t = String(w)
+    if (!fest.includes(t)) eigene.add(t)
+  }
+  return [...fest, ...[...eigene].sort((a, b) => a.localeCompare(b, 'de'))]
 }
 
 export const BIBLIOTHEK: TypDef[] = [
@@ -202,7 +222,7 @@ export const BIBLIOTHEK: TypDef[] = [
     typ: 'verbraucher', label: 'Verbraucher / Stromkreis', kategorie: 'Verbraucher', bmk: 'XD', farbe: '#475569',
     pole: 1, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'verbraucher',
     params: [
-      { key: 'verwendung', label: 'Verwendung', art: 'auswahl', optionen: Object.keys(VERWENDUNG), standard: 'Steckdosen' },
+      { key: 'verwendung', label: 'Verwendung', art: 'auswahl', frei: true, optionen: Object.keys(VERWENDUNG), standard: 'Steckdosen' },
       { key: 'leistung', label: 'Leistung', art: 'zahl', einheit: 'kW', standard: '' },
     ],
     bmkAus: (p) => VERWENDUNG[String(p.verwendung)] ?? 'XD',

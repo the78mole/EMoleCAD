@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BEISPIEL_YAML } from '../model/beispiel'
 import { parseYaml, toYaml, YamlFehler } from '../model/yaml'
-import { typDef } from '../model/library'
+import { paramOptionen, typDef, VERWENDUNG } from '../model/library'
 import { analysiere } from '../model/analyse'
 import { datenVerbinden, hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren, paTrennen, paVerbinden } from '../model/ops'
 import { zeichnePlan } from '../schematic/render'
@@ -148,6 +148,23 @@ describe('Kennbuchstaben IEC 81346-2', () => {
       p = v ? aktualisieren(r.projekt, r.id, { ...r.projekt.komponenten.find((k) => k.id === r.id)!, params: { verwendung: v } }) : r.projekt
     }
     expect(neuNummerieren(p).komponenten.map((k) => k.id).sort()).toEqual(['EA1', 'EB1', 'XD1', 'XD2'])
+  })
+})
+
+describe('Verwendung mit Freitext', () => {
+  it('Reserve und im Projekt verwendete eigene Texte erscheinen in der Auswahl', () => {
+    const p = parseYaml(`komponenten:
+  - { id: X1, typ: hausanschluss }
+  - { id: E1, typ: verbraucher, quelle: X1, params: { verwendung: Sauna } }
+  - { id: E2, typ: verbraucher, quelle: X1, params: { verwendung: Reserve } }
+  - { id: E3, typ: verbraucher, quelle: X1, params: { verwendung: Aquarium } }
+  - { id: E4, typ: verbraucher, quelle: X1, params: { verwendung: Sauna } }`)
+    const pd = typDef('verbraucher').params.find((x) => x.key === 'verwendung')!
+    const opt = paramOptionen(pd, 'verbraucher', p.komponenten)
+    expect(opt).toContain('Reserve')
+    expect(opt.slice(-2)).toEqual(['Aquarium', 'Sauna'])
+    expect(opt.filter((o) => o === 'Sauna')).toHaveLength(1)
+    expect(VERWENDUNG.Reserve).toBe('XD')
   })
 })
 
