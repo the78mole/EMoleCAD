@@ -101,8 +101,13 @@ export const BIBLIOTHEK: TypDef[] = [
   {
     typ: 'trennschalter', label: 'Lasttrennschalter', kategorie: 'Schutz', bmk: 'QB', farbe: '#f97316',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'trenner',
-    params: [{ key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 63 }],
-    kurz: (p) => `${n(p.nennstrom)}A`,
+    params: [
+      { key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 63 },
+      // Allpolige Trennung (N mitgeschaltet), z. B. Netztrennung für Ersatzstromversorgung.
+      // Der N-Kontakt schließt voreilend und öffnet nacheilend (kein Neutralleiterabriss).
+      { key: 'allpolig', label: 'Allpolig trennen (N voreilend ein, nacheilend aus)', art: 'bool', standard: false },
+    ],
+    kurz: (p) => `${n(p.nennstrom)}A${p.allpolig ? ' allpolig' : ''}`,
   },
   {
     typ: 'sicherung', label: 'Schmelzsicherung', kategorie: 'Schutz', bmk: 'FC', farbe: '#f59e0b',

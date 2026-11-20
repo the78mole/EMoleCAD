@@ -243,3 +243,24 @@ potentialausgleich:
     expect(zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz }).inhalt).toContain('-PAS1')
   })
 })
+
+describe('Lasttrennschalter allpolig', () => {
+  const yaml = (extra: string) => `projekt: { titel: T }
+netz: { form: TN-C-S }
+komponenten:
+  - { id: XD1, typ: hak }
+  - { id: QB1, typ: trennschalter, quelle: XD1${extra} }
+  - { id: FC1, typ: ls, quelle: QB1 }
+`
+  // Kreise der Schaltglieder (je geschaltetem Leiter einer)
+  const kontakte = (inhalt: string) => (inhalt.match(/<circle/g) ?? []).length
+  it('Standard 3-polig, Option schaltet N mit (voreilend/nacheilend) und bleibt im YAML erhalten', () => {
+    const p3 = parseYaml(yaml(''))
+    const p4 = parseYaml(yaml(', params: { nennstrom: 63, allpolig: true }'))
+    expect(p4.komponenten[1].params!.allpolig).toBe(true)
+    expect(parseYaml(toYaml(p4))).toEqual(p4)
+    const plan = (p: typeof p3) => zeichnePlan(analysiere(p), { modus: 'allpolig', farbig: true, netz: p.netz })
+    expect(kontakte(plan(p4).inhalt)).toBe(kontakte(plan(p3).inhalt) + 1)
+    expect(plan(p4).inhalt).toContain('63A allpolig')
+  })
+})

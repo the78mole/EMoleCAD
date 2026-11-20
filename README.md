@@ -94,7 +94,7 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `hlak` | Hauptleiteranschlussklemme (Einspeisekette) | XD | querschnitt, nennstrom |
 | `zaehler` | Zähler | PG | art (Bezug/Zweirichtung/Erzeugung/Unterzähler), zaehlernummer, messkonzept |
 | `sls` | SLS-Schalter | FC | nennstrom |
-| `trennschalter` | Lasttrennschalter | QB | nennstrom |
+| `trennschalter` | Lasttrennschalter | QB | nennstrom, allpolig (N mitgeschaltet, voreilend ein / nacheilend aus; z. B. Netztrennung für Ersatzstrom) |
 | `sicherung` | Schmelzsicherung | FC | nennstrom, bauform |
 | `rcd` | FI-Schutzschalter | FB | nennstrom, fehlerstrom, rcdtyp |
 | `ls` | Leitungsschutzschalter | FC | charakteristik, nennstrom |
