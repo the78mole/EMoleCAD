@@ -356,7 +356,10 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     if (bezug?.fortsetzung === n.k.id) {
       // Fortsetzung der Abgänge eines Geräts von einem anderen Blatt: nur die Leitung, kein Symbol
       for (const le of allp ? l.aus : (['L1'] as LeiterName[])) svg.linie(cx(l, le, l.aus), l.symTop, cx(l, le, l.aus), l.symBot, { farbe: farbe(le) })
-      if (!eltern && l.kette && bezug.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+      if (!eltern && l.kette && bezug.zufuehrung) {
+        zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+        if (!allp) leiterZahl(svg, { ...l, aufwaerts: true }, yNetz, !!o.farbig)
+      }
       continue
     }
     if (fremd(n.k.id)) {
@@ -365,7 +368,10 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       continue
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
-    else if (!eltern && l.kette && bezug?.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+    else if (!eltern && l.kette && bezug?.zufuehrung) {
+      zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+      if (!allp) leiterZahl(svg, { ...l, aufwaerts: true }, yNetz, !!o.farbig)
+    }
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
@@ -517,7 +523,8 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       case 'unten': return { p: [l.x + v, g.unten], s: [l.x + v, g.unten + stich] }
       // Einspeisekette: rechts oben anfahren, Beschriftung steht darunter
       case 'kette': return { p: [g.rechts, g.oben + 1.5 + i * 1.6], s: [g.rechts + stich, g.oben + 1.5 + i * 1.6] }
-      case 'links': return { p: [l.x - g.hb, g.mitte + v], s: [l.x - g.hb - stich, g.mitte + v] }
+      // links nicht über den Planrand hinaus
+      case 'links': return { p: [l.x - g.hb, g.mitte + v], s: [Math.max(1.5, l.x - g.hb - stich), g.mitte + v] }
       default: return { p: [l.x + g.hb, g.mitte + v], s: [l.x + g.hb + stich, g.mitte + v] }
     }
   }
