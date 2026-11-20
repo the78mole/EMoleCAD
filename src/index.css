@@ -7,8 +7,13 @@
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; }
 button, select, input { font: inherit; color: inherit; }
-button {
-  background: var(--panel); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 11px; cursor: pointer;
+/* Grundstil für Knöpfe in einer eigenen Ebene vor React Flow (@layer xyflow), damit er die
+   React-Flow-Bedienelemente (z. B. Zoom-Knöpfe) nicht überschreibt. */
+@layer basis, xyflow;
+@layer basis {
+  button {
+    background: var(--panel); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 11px; cursor: pointer;
+  }
 }
 button:hover:not(:disabled) { border-color: #aab1bc; background: #fafbfc; }
 button:disabled { opacity: .55; cursor: default; }
