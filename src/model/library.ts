@@ -101,7 +101,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `SLS E ${n(p.nennstrom)}A`,
   },
   {
-    typ: 'trennschalter', label: 'Lasttrennschalter', kategorie: 'Schutz', bmk: 'QB', farbe: '#f97316',
+    typ: 'trennschalter', daten: true, label: 'Lasttrennschalter', kategorie: 'Schutz', bmk: 'QB', farbe: '#f97316',
     pole: 3, poleWaehlbar: true, nSchaltbar: true, kinder: true, durchgang: true, symbol: 'trenner',
     params: [{ key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 63 }],
     kurz: (p) => `${n(p.nennstrom)}A`,

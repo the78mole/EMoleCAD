@@ -535,6 +535,13 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     const ziel = fern ? o.blatt?.ort.get(fern) : undefined
     return (a || b) && ziel ? { l: (a ?? b)!, ziel } : undefined
   }
+  // Rechtes Ende der Beschriftungen in der Einspeisekette (Schätzung über die Zeichenzahl)
+  const ketteTextEnde = Math.max(0, ...[...lagen.values()].filter((l) => l.kette).map((l) => {
+    const n = l.n
+    const r = allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + 3.5 : l.x + 5.5
+    const zeilen = [...umbrechen(kurzText(n), 12), ...(n.k.name ? umbrechen(n.k.name, 14) : [])]
+    return r + Math.max(n.bmk.length * 1.5, ...zeilen.map((z) => z.length * 1.0))
+  }))
   const stichGesamt = new Map<Lage, number>()
   for (const d of liste) { const v = verweisZiel(d); if (v) stichGesamt.set(v.l, (stichGesamt.get(v.l) ?? 0) + 1) }
   const stichNr = new Map<Lage, number>()
@@ -571,6 +578,12 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       // direkt: senkrecht hoch, dann waagerecht in die rechte Seite des Geräts
       ecke = [q.p[0], z.p[1]]
       pkt = [q.p, ecke, z.p]
+    } else if (seite(b) === 'kette' && seite(a) !== 'kette') {
+      // Gerät der Einspeisekette: Senkrechte rechts an den Beschriftungen der Kette vorbei,
+      // dann waagerecht über der Beschriftung in den Anschluss
+      const x = Math.max(z.s[0], ketteTextEnde + 1.5 + i * 1.6)
+      ecke = [x, q.s[1]]
+      pkt = [q.p, q.s, ecke, [x, z.p[1]], z.p]
     } else {
       ecke = [z.s[0], q.s[1]]
       pkt = [q.p, q.s, ecke, z.s, z.p]

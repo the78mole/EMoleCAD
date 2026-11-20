@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BEISPIEL_YAML } from '../model/beispiel'
 import { parseYaml, toYaml, YamlFehler } from '../model/yaml'
 import { analysiere } from '../model/analyse'
-import { hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren, paTrennen, paVerbinden } from '../model/ops'
+import { datenVerbinden, hinzufuegen, aktualisieren, entfernen, istVorfahr, neuNummerieren, paTrennen, paVerbinden } from '../model/ops'
 import { zeichnePlan } from '../schematic/render'
 
 describe('YAML', () => {
@@ -300,5 +300,23 @@ komponenten:
   it('warnt, wenn ein Gerät den N nicht schalten kann', () => {
     const p = parseYaml(yaml('').replace('typ: ls, quelle: QB1, pole: 3', 'typ: ls, quelle: QB1, pole: 4'))
     expect(analysiere(p).meldungen.some((m) => m.id === 'FC1' && m.text.includes('N nicht schalten'))).toBe(true)
+  })
+})
+
+describe('Lasttrennschalter Datenanschluss', () => {
+  it('kann vom Wechselrichter gesteuert werden (Steuersignal)', () => {
+    const p = parseYaml(`projekt: { titel: T }
+netz: { form: TN-C-S }
+komponenten:
+  - { id: XD1, typ: hausanschluss }
+  - { id: QB1, typ: trennschalter, quelle: XD1, pole: 4, voreilend: true }
+  - { id: TB1, typ: wechselrichter, quelle: QB1 }
+`)
+    const q = datenVerbinden(p, 'TB1', 'QB1')
+    expect(q.datenverbindungen).toEqual([{ von: 'TB1', nach: 'QB1', art: 'Steuersignal' }])
+    const a = analysiere(q)
+    expect(a.meldungen.filter((m) => m.text.includes('Datenverbindung'))).toEqual([])
+    const plan = zeichnePlan(a, { modus: 'einpolig', farbig: true, netz: q.netz, daten: q.datenverbindungen })
+    expect(plan.inhalt).toContain('Steuersignal')
   })
 })
