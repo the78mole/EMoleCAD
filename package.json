@@ -43,5 +43,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "core-js": false
   }
 }
