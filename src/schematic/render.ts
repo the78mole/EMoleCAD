@@ -18,7 +18,8 @@ export interface PlanOptionen {
   pa?: PaVerbindung[]
   /** Aufteilung auf mehrere Blätter (z.B. zweiter Zählerstrang) */
   blatt?: BlattBezug
-  /** Höchstzahl Endstromkreise je Blatt, danach geht es auf einem Folgeblatt weiter (0 = unbegrenzt) */
+  /** Höchstzahl Endstromkreise je Blatt, danach geht es auf einem Folgeblatt weiter (0 = unbegrenzt).
+   *  Wirkt nur über zeichnePlaene/blattTeilung; zeichnePlan zeichnet immer genau ein Blatt. */
   maxAbgaenge?: number
 }
 
@@ -352,7 +353,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     }
     if (bezug?.fortsetzung === n.k.id) {
       // Fortsetzung der Abgänge eines Geräts von einem anderen Blatt: nur die Leitung, kein Symbol
-      for (const le of allp ? n.leiter : (['L1'] as LeiterName[])) svg.linie(cx(l, le), l.symTop, cx(l, le), l.symBot, { farbe: farbe(le) })
+      for (const le of allp ? l.aus : (['L1'] as LeiterName[])) svg.linie(cx(l, le, l.aus), l.symTop, cx(l, le, l.aus), l.symBot, { farbe: farbe(le) })
       if (!eltern && l.kette && bezug.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
       continue
     }

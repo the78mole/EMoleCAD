@@ -60,7 +60,7 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
   const [farbig, setFarbig] = useState<boolean>(() => lese('molecad.farbig', true))
   const [anordnung, setAnordnung] = useState<Anordnung>(() => lese('molecad.anordnung', 'hager'))
   const [tabelle, setTabelle] = useState<boolean>(() => lese('molecad.tabelle', true))
-  const [abgaenge, setAbgaenge] = useState<number | 'auto'>(() => lese('molecad.abgaenge', 'auto'))
+  const [abgaenge, setAbgaenge] = useState<number | 'auto'>(() => { const v = lese<unknown>('molecad.abgaenge', 'auto'); return typeof v === 'number' && v >= 0 ? v : 'auto' })
   const d: DarstellungsOptionen = { vorlage, farbig, anordnung, tabelle, abgaenge }
   const [zoom, setZoom] = useState<number | 'fit'>('fit')
   const [exportiert, setExportiert] = useState(false)

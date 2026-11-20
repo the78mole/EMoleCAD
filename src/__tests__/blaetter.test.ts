@@ -145,3 +145,18 @@ describe('Folgeblätter', () => {
     expect(t[t.length - 1].bezug!.zufuehrung).toMatchObject({ bmk: '-WD1', blatt: 1 })
   })
 })
+
+describe('Folgeblätter – Hilfsleitungen', () => {
+  it('Potentialausgleich zu einem Gerät auf dem Folgeblatt bekommt dort einen Verweis auf die Schiene', () => {
+    const p = verteilung([4, 4, 4, 4, 4])
+    p.komponenten.push({ id: 'PAS1', typ: 'pas' })
+    p.potentialausgleich = [{ von: 'PAS1', nach: 'EV20', querschnitt: '6' }]
+    for (const modus of ['einpolig', 'allpolig'] as const) {
+      const b = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, pa: p.potentialausgleich, maxAbgaenge: 10 })
+      const blatt = b.findIndex((s) => s.inhalt.includes('>-EV20<'))
+      expect(blatt).toBeGreaterThan(0)
+      expect(b[blatt].inhalt).toContain('-PAS1 (Blatt 1)')
+      expect(b[0].inhalt).toContain(`-EV20 (Blatt ${blatt + 1})`)
+    }
+  })
+})

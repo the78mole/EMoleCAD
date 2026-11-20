@@ -169,7 +169,7 @@ export function blattTeilung(a: Analyse, o: Pick<PlanOptionen, 'anordnung' | 'ma
   return teile.map((t) => {
     const s = t.start ?? t.zu
     const leiter = (k: Knoten) => (k.dc ? 'DC' : k.pole === 3 ? '3/N/PE' : `${k.phase}/N/PE`)
-    const zufuehrung = t.zu && s ? { bmk: t.zu.bmk, blatt: ort.get(t.zu.k.id)!.blatt, leiter: leiter(s) } : undefined
+    const zufuehrung = t.zu && s ? { bmk: t.zu.bmk, blatt: ort.get(t.zu.k.id)!.blatt, leiter: t.nur?.some((c) => c.dc) ? 'DC' : leiter(s) } : undefined
     const { sicht: v, gruppen } = sicht(a, t, teilVon)
     const verweis = new Map<string, string>()
     for (const [id, g] of gruppen) {
