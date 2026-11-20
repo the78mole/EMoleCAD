@@ -1226,7 +1226,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     return
   }
 
-  const allpolig = art === 'trenner' && !!n.k.params?.allpolig
+  const allpolig = art === 'trenner' && n.k.params?.allpolig === true
   const geschaltet = (le: LeiterName): boolean => {
     switch (art) {
       case 'trenner':

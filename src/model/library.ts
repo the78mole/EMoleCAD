@@ -107,7 +107,7 @@ export const BIBLIOTHEK: TypDef[] = [
       // Der N-Kontakt schließt voreilend und öffnet nacheilend (kein Neutralleiterabriss).
       { key: 'allpolig', label: 'Allpolig trennen (N voreilend ein, nacheilend aus)', art: 'bool', standard: false },
     ],
-    kurz: (p) => `${n(p.nennstrom)}A${p.allpolig ? ' allpolig' : ''}`,
+    kurz: (p) => `${n(p.nennstrom)}A${p.allpolig === true ? ' allpolig' : ''}`,
   },
   {
     typ: 'sicherung', label: 'Schmelzsicherung', kategorie: 'Schutz', bmk: 'FC', farbe: '#f59e0b',
