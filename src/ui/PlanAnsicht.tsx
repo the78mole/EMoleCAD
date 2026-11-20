@@ -17,6 +17,17 @@ export interface DarstellungsOptionen {
   farbig: boolean
   anordnung: Anordnung
   tabelle: boolean
+  /** Endstromkreise je Blatt: 'auto' richtet sich nach der Blattvorlage, 0 = unbegrenzt */
+  abgaenge: number | 'auto'
+}
+
+/** Endstromkreise je Blatt, bevor auf ein Folgeblatt umgebrochen wird */
+const AUTO_ABGAENGE: Record<string, number> = { a3: 16, a3k: 16, a4: 10, a4k: 10, frei: 0 }
+const ABGAENGE_WAHL = [6, 8, 10, 12, 16, 20, 24, 32]
+
+// oxlint-disable-next-line react/only-export-components -- Hilfsfunktion; betrifft nur Fast Refresh im Entwicklungsserver
+export function maxAbgaenge(d: Pick<DarstellungsOptionen, 'vorlage' | 'abgaenge'>): number {
+  return d.abgaenge === 'auto' ? (AUTO_ABGAENGE[d.vorlage] ?? 16) : d.abgaenge
 }
 
 function lese<T>(key: string, std: T): T {
@@ -34,10 +45,10 @@ function schreibe(key: string, v: unknown) {
 // oxlint-disable-next-line react/only-export-components -- Hilfsfunktion für den Export; betrifft nur Fast Refresh im Entwicklungsserver
 export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: DarstellungsOptionen, modi: Modus[]): Blatt[] {
   const v = VORLAGEN.find((x) => x.id === d.vorlage) ?? VORLAGEN[0]
-  // je Darstellung ggf. mehrere Blätter (weitere Zählerstränge); fortlaufend nummeriert
+  // je Darstellung ggf. mehrere Blätter (weitere Zählerstränge, Folgeblätter); fortlaufend nummeriert
   const plaene: { m: Modus; plan: ReturnType<typeof zeichnePlaene>[number] }[] = []
   for (const m of modi) {
-    const opt = { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }
+    const opt = { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, maxAbgaenge: maxAbgaenge(d), daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }
     for (const plan of zeichnePlaene(analyse, opt, plaene.length + 1)) plaene.push({ m, plan })
   }
   return plaene.map(({ m, plan }, i) => erzeugeBlatt(plan, projekt, m, v, i + 1, plaene.length, d.farbig))
@@ -49,11 +60,12 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
   const [farbig, setFarbig] = useState<boolean>(() => lese('molecad.farbig', true))
   const [anordnung, setAnordnung] = useState<Anordnung>(() => lese('molecad.anordnung', 'hager'))
   const [tabelle, setTabelle] = useState<boolean>(() => lese('molecad.tabelle', true))
-  const d: DarstellungsOptionen = { vorlage, farbig, anordnung, tabelle }
+  const [abgaenge, setAbgaenge] = useState<number | 'auto'>(() => { const v = lese<unknown>('molecad.abgaenge', 'auto'); return typeof v === 'number' && v >= 0 ? v : 'auto' })
+  const d: DarstellungsOptionen = { vorlage, farbig, anordnung, tabelle, abgaenge }
   const [zoom, setZoom] = useState<number | 'fit'>('fit')
   const [exportiert, setExportiert] = useState(false)
 
-  const blaetter = useMemo(() => erzeugeBlaetter(projekt, analyse, { vorlage, farbig, anordnung, tabelle }, [modus]), [projekt, analyse, vorlage, farbig, anordnung, tabelle, modus])
+  const blaetter = useMemo(() => erzeugeBlaetter(projekt, analyse, { vorlage, farbig, anordnung, tabelle, abgaenge }, [modus]), [projekt, analyse, vorlage, farbig, anordnung, tabelle, abgaenge, modus])
   const [blattWahl, setBlattWahl] = useState(0)
   const blattNr = Math.min(blattWahl, blaetter.length - 1)
   const blatt = blaetter[blattNr]
@@ -95,6 +107,13 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
             <input type="checkbox" checked={tabelle} onChange={(e) => { setTabelle(e.target.checked); schreibe('molecad.tabelle', e.target.checked) }} /> Tabelle
           </label>
         )}
+        {anordnung === 'hager' && (
+          <select value={String(abgaenge)} onChange={(e) => { const v = e.target.value === 'auto' ? 'auto' : Number(e.target.value); setAbgaenge(v); schreibe('molecad.abgaenge', v) }} title="Stromkreise je Blatt: Danach geht der Plan auf einem Folgeblatt weiter (umgebrochen wird an ganzen Teilbäumen, z.B. einem FI)">
+            <option value="auto">Stromkreise/Blatt: auto ({maxAbgaenge({ vorlage, abgaenge: 'auto' }) || 'alle'})</option>
+            {ABGAENGE_WAHL.map((n) => <option key={n} value={n}>{n} je Blatt</option>)}
+            <option value="0">alle auf ein Blatt</option>
+          </select>
+        )}
         <label className="check" title="Leiterfarben im allpoligen Plan; im einpoligen Plan N/PE-Marken und Potentialausgleich grün">
           <input type="checkbox" checked={farbig} onChange={(e) => { setFarbig(e.target.checked); schreibe('molecad.farbig', e.target.checked) }} /> Farbig
         </label>
@@ -104,7 +123,7 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
           <button onClick={() => setZoom((z) => Math.min(4, (z === 'fit' ? 0.5 : z) * 1.25))} title="Vergrößern">+</button>
         </div>
         {blaetter.length > 1 && (
-          <div className="segment klein" title="Blatt (weitere Zählerstränge stehen auf eigenen Blättern)">
+          <div className="segment klein" title="Blatt (weitere Zählerstränge und Folgeblätter)">
             {blaetter.map((_, i) => (
               <button key={i} className={i === blattNr ? 'aktiv' : ''} onClick={() => setBlattWahl(i)}>Blatt {i + 1}</button>
             ))}

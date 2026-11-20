@@ -148,6 +148,15 @@ auf ein eigenes Blatt. Auf Blatt 1 endet der Abgang in einem Verweispfeil (`-FC1
 `von -WD1 (Blatt 1)`. Datenverbindungen und Potentialausgleich zwischen den Blättern werden als Stich mit Verweis
 gezeichnet (`LMN → -KE1 (Blatt 1)`). Der ungezählte Bereich mit SPD, SMGW und Steuerbox bleibt dabei auf Blatt 1 beisammen.
 
+### Folgeblätter
+
+Stehen auf einem Blatt mehr Stromkreise als eingestellt (Auswahl „Stromkreise/Blatt“ in der Planleiste; *auto* = 16 bei A3,
+10 bei A4, unbegrenzt ohne Rahmen), geht der Plan auf einem Folgeblatt weiter. Umgebrochen wird an ganzen Teilbäumen,
+üblicherweise einem FI mit seinen Stromkreisen; passt ein Teilbaum allein nicht auf ein Blatt, wird innerhalb davon
+umgebrochen (z. B. zwischen den LS eines großen FI). Auf dem abgebenden Blatt endet der Abgang in einem Verweispfeil
+(`-FB21 … -FB57 → Blatt 2`), das Folgeblatt beginnt mit `von -QB1 (Blatt 1)`. Einpoliger und allpoliger Plan werden
+gleich aufgeteilt.
+
 ```yaml
   - { id: FC10, typ: sls,     quelle: WD1, params: { nennstrom: 35 } }
   - { id: PG2,  typ: zaehler, quelle: FC10, name: Zähler § 14a Modul 2 }

@@ -59,3 +59,20 @@ datenverbindungen:
   - { von: KE2, nach: FB1, art: Steuersignal }
 `)
 }
+
+/** Verteilung hinter dem Zähler mit mehreren FI-Gruppen; `gruppen` = Stromkreise je FI */
+export function verteilung(gruppen: number[]): Projekt {
+  const k: string[] = [
+    '  - { id: XD1, typ: hausanschluss, params: { sicherung: 63 } }',
+    '  - { id: FC1, typ: sls, quelle: XD1, params: { nennstrom: 50 } }',
+    '  - { id: PG1, typ: zaehler, quelle: FC1 }',
+    '  - { id: QB1, typ: trennschalter, quelle: PG1 }',
+    '  - { id: FA1, typ: spd, quelle: XD1 }',
+  ]
+  let nr = 1
+  gruppen.forEach((anz, g) => {
+    k.push(`  - { id: FB${g + 1}, typ: rcd, quelle: QB1 }`)
+    for (let i = 0; i < anz; i++, nr++) k.push(`  - { id: FC${nr + 10}, typ: ls, quelle: FB${g + 1}, pole: 1 }`, `  - { id: EV${nr}, typ: verbraucher, quelle: FC${nr + 10} }`)
+  })
+  return parseYaml(`netz: { form: TN-C-S, spannung: 230/400 V }\nkomponenten:\n${k.join('\n')}\n`)
+}
