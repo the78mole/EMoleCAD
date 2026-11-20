@@ -270,7 +270,8 @@ komponenten:
     const inhalt = plan(p)
     for (const le of ['L1', 'L2', 'L3', 'N'] as const) expect(kontakte(inhalt, FARBE[le])).toBe(1)
     expect(marken(inhalt)).toBe(0)
-    expect(inhalt).toContain('63A 4-polig')
+    expect(inhalt).toContain('>63A 4-polig<')
+    expect(inhalt).not.toContain('>voreilend<')
   })
   it('4-polig voreilend kennzeichnet den N-Kontakt', () => {
     const p = parseYaml(yaml(', pole: 4, voreilend: true, params: { nennstrom: 63 }'))
@@ -279,6 +280,7 @@ komponenten:
     const inhalt = plan(p)
     expect(kontakte(inhalt, FARBE.N)).toBe(1)
     expect(marken(inhalt)).toBe(1)
+    expect(inhalt).toContain('>63A 4-polig<')
     expect(inhalt).toContain('>voreilend<')
     expect(inhalt).not.toContain('nacheilend')
   })
@@ -289,6 +291,7 @@ komponenten:
     const aus = parseYaml(yaml(', params: { allpolig: "false" }'))
     expect(aus.komponenten[1].pole).toBeUndefined()
     expect(aus.komponenten[1].params).toBeUndefined()
+    expect(() => parseYaml(yaml(', params: { allpolig: vielleicht }'))).toThrow(YamlFehler)
   })
   it('warnt, wenn ein Gerät den N nicht schalten kann', () => {
     const p = parseYaml(yaml('').replace('typ: ls, quelle: QB1, pole: 3', 'typ: ls, quelle: QB1, pole: 4'))

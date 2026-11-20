@@ -945,7 +945,8 @@ function erde(svg: Svg, x: number, y: number, fa = '#000', oben = false) {
 function kurzText(n: Knoten): string {
   const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
   if (!n.nGeschaltet) return kurz
-  return `${kurz} ${n.pole === 3 ? 4 : 2}-polig${n.voreilend ? ' voreilend' : ''}`.trim()
+  // eingestellte Polzahl des Geräts, auch wenn die Zuleitung nur einphasig ist
+  return `${kurz} ${n.k.pole}-polig${n.voreilend ? ' voreilend' : ''}`.trim()
 }
 
 function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: boolean; kreis?: boolean; farbe?: string; dx?: number; voreilend?: boolean }) {

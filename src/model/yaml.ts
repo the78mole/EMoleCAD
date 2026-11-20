@@ -132,6 +132,8 @@ function komponenteAus(k: unknown, i: number): Komponente {
     // ältere Dateien: Lasttrennschalter mit params.allpolig -> 4-polig (bzw. 2-polig) voreilend
     if (out.typ === 'trennschalter' && 'allpolig' in out.params) {
       const v = String(out.params.allpolig).trim().toLowerCase()
+      if (![['true', 'ja', '1'], ['false', 'nein', '0', '']].flat().includes(v))
+        throw new YamlFehler(`Komponente "${k.id}": allpolig muss true oder false sein`)
       delete out.params.allpolig
       if (['true', 'ja', '1'].includes(v)) {
         out.pole = out.pole === 1 || out.pole === 2 ? 2 : 4
