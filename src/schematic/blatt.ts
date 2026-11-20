@@ -117,9 +117,9 @@ function aufteilung(plan: Pick<Plan, 'breite' | 'hoehe'>, modus: Modus, v: Vorla
 }
 
 /** Planquadrat („B1“: Zeile B, Spalte 1) eines Punkts der Zeichnung (Planmaß) auf dem Blatt;
- *  undefined bei Vorlagen ohne Rahmen */
+ *  undefined bei der Vorlage ohne feste Blattgröße (dort zeichnet erzeugeBlatt keine Randeinteilung) */
 export function planquadrat(plan: Pick<Plan, 'breite' | 'hoehe'>, modus: Modus, v: Vorlage, x: number, y: number): string | undefined {
-  if (v.breite === 0 || !v.rahmen) return undefined
+  if (v.breite === 0) return undefined
   const a = aufteilung(plan, modus, v)
   const px = a.dx + x * a.massstab, py = a.dy + y * a.massstab
   const sp = Math.min(a.spalten, Math.max(1, Math.floor((px - a.L) / a.sw) + 1))

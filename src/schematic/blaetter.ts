@@ -187,7 +187,7 @@ export function blattTeilung(a: Analyse, o: Pick<PlanOptionen, 'anordnung' | 'ma
  */
 export function zeichnePlaene(a: Analyse, o: PlanOptionen, startNr = 1, vorlage?: Vorlage): Plan[] {
   const teile = blattTeilung(a, o, startNr)
-  const plaene = teile.map((b) => zeichnePlan(b.sicht, { ...o, blatt: b.bezug }))
+  const plaene = teile.map((b) => zeichnePlan(b.sicht, { ...o, blatt: b.bezug, verweisPlatzhalter: true }))
   const nachNr = new Map(teile.map((b, i) => [b.bezug?.nr ?? startNr + i, plaene[i]]))
   return plaene.map((p, i) => {
     const ort = teile[i].bezug?.ort

@@ -21,6 +21,9 @@ export interface PlanOptionen {
   /** Höchstzahl Endstromkreise je Blatt, danach geht es auf einem Folgeblatt weiter (0 = unbegrenzt).
    *  Wirkt nur über zeichnePlaene/blattTeilung; zeichnePlan zeichnet immer genau ein Blatt. */
   maxAbgaenge?: number
+  /** Intern (zeichnePlaene): Blattangaben der Querverweise als Platzhalter lassen, damit sie nach dem
+   *  Zeichnen aller Blätter mit Planquadrat ersetzt werden. Sonst steht dort nur „S.<Blatt>“. */
+  verweisPlatzhalter?: boolean
 }
 
 /** Bezug eines Blatts auf die übrigen Blätter des Plansatzes */
@@ -59,6 +62,14 @@ class Verweise {
   ziel(id: string) {
     this.ziele.push(id)
     return `\u0001${this.ziele.length - 1}\u0001`
+  }
+  /** Platzhalter durch „S.<Blatt>“ ersetzen, außer zeichnePlaene löst sie selbst auf */
+  fertig(inhalt: string, o: PlanOptionen) {
+    if (o.verweisPlatzhalter) return inhalt
+    return inhalt.replace(VERWEIS_MUSTER, (_, k: string) => {
+      const z = o.blatt?.ort.get(this.ziele[Number(k)])
+      return z ? `S.${z.blatt}` : ''
+    })
   }
 }
 
@@ -125,7 +136,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   if (!alle.length && a.potential.length) {
     // nur Potentialausgleichsschienen vorhanden
     const pa = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 }, vw)
-    return { inhalt: svg.toString(), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4, orte: vw.orte, verweise: vw.ziele }
+    return { inhalt: vw.fertig(svg.toString(), o), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4, orte: vw.orte, verweise: vw.ziele }
   }
   if (!alle.length) {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
@@ -422,7 +433,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined && !fremd(l.n.k.id)).sort((p, q) => p.slotX0! - q.slotX0!)
     if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, Math.max(yNetz + 12, daten.unten + 3), trennX) + 4
   }
-  return { inhalt: svg.toString(), breite, hoehe, orte: vw.orte, verweise: vw.ziele }
+  return { inhalt: vw.fertig(svg.toString(), o), breite, hoehe, orte: vw.orte, verweise: vw.ziele }
 }
 
 /** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
