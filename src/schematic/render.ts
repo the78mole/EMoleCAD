@@ -18,6 +18,8 @@ export interface PlanOptionen {
   pa?: PaVerbindung[]
   /** Aufteilung auf mehrere Blätter (z.B. zweiter Zählerstrang) */
   blatt?: BlattBezug
+  /** Höchstzahl Endstromkreise je Blatt, danach geht es auf einem Folgeblatt weiter (0 = unbegrenzt) */
+  maxAbgaenge?: number
 }
 
 /** Bezug eines Blatts auf die übrigen Blätter des Plansatzes */
@@ -27,6 +29,10 @@ export interface BlattBezug {
   ort: Map<string, { blatt: number; bmk: string }>
   /** Komponente auf einem anderen Blatt, von der dieses Blatt gespeist wird */
   zufuehrung?: { bmk: string; blatt: number; leiter: string }
+  /** Beschriftung der Verweise auf andere Blätter (je Verweis-Komponente) */
+  verweis?: Map<string, string>
+  /** Folgeblatt: diese Komponente steht auf einem anderen Blatt, ihre Abgänge gehen hier weiter */
+  fortsetzung?: string
 }
 
 export interface Plan {
@@ -344,9 +350,15 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       else yStart = n.def.wurzel && !hager ? OBEN - 2 : l.symTop - 5
       svg.linie(xx, yStart, xx, l.aufwaerts ? l.symBot : l.symTop, { farbe: fa })
     }
+    if (bezug?.fortsetzung === n.k.id) {
+      // Fortsetzung der Abgänge eines Geräts von einem anderen Blatt: nur die Leitung, kein Symbol
+      for (const le of allp ? n.leiter : (['L1'] as LeiterName[])) svg.linie(cx(l, le), l.symTop, cx(l, le), l.symBot, { farbe: farbe(le) })
+      if (!eltern && l.kette && bezug.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
+      continue
+    }
     if (fremd(n.k.id)) {
       if (!allp && eltern) leiterZahl(svg, l, eltern, eltern.busY.L1, !!o.farbig)
-      verweisPfeil(svg, l, allp, cx, `${n.bmk} → Blatt ${bezug!.ort.get(n.k.id)!.blatt}`)
+      verweisPfeil(svg, l, allp, cx, bezug!.verweis?.get(n.k.id) ?? `${n.bmk} → Blatt ${bezug!.ort.get(n.k.id)!.blatt}`)
       continue
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
