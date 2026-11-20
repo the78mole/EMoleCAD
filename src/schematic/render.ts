@@ -338,6 +338,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
           const ex = allp && eltern.n.leiter.includes(le) ? cx(eltern, le) : xx
           const ym = (eltern.symTop + l.symBot) / 2
           svg.pfad(`M ${ex} ${eltern.symTop} V ${ym} H ${xx} V ${l.symBot}`, { farbe: fa })
+          // Leiterkennzeichnung unter dem Gerät (Energiefluss von unten nach oben)
+          if (!allp && !fremd(n.k.id)) leiterZahl(svg, { ...l, aufwaerts: true }, eltern.symTop, !!o.farbig)
         }
         continue
       }
@@ -358,13 +360,13 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       continue
     }
     if (fremd(n.k.id)) {
-      if (!allp && eltern) leiterZahl(svg, l, eltern, eltern.busY.L1, !!o.farbig)
+      if (!allp && eltern) leiterZahl(svg, l, eltern.busY.L1, !!o.farbig)
       verweisPfeil(svg, l, allp, cx, bezug!.verweis?.get(n.k.id) ?? `${n.bmk} → Blatt ${bezug!.ort.get(n.k.id)!.blatt}`)
       continue
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
     else if (!eltern && l.kette && bezug?.zufuehrung) zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung)
-    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, eltern, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
+    else if (!allp && eltern && !l.kette) leiterZahl(svg, l, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
     if (n.def.symbol === 'schiene' && l.kette && n === kette[kette.length - 1]) {
@@ -444,7 +446,7 @@ function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: 
 
 // ---------- Informationsverbindungen ----------
 
-type Seite = 'oben' | 'unten' | 'kette' | 'rechts'
+type Seite = 'oben' | 'unten' | 'kette' | 'rechts' | 'links'
 
 /** Umriss eines Geräts für Anschlüsse von Hilfsleitungen */
 function geometrie(l: Lage, allp: boolean, cx: Cx) {
@@ -485,23 +487,37 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     unten = k.unten
   }
   const liste = alleVerb.filter((d) => !kanal?.verb.has(d))
-  const seite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
   const geo = (l: Lage) => geometrie(l, allp, cx)
+  const grundSeite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
+  /** Geräte mit Abgängen werden seitlich angefahren: von der Seite, auf der die Gegenstelle liegt */
+  const seite = (l: Lage, gegen?: Lage): Seite => {
+    const s = grundSeite(l)
+    if (s !== 'rechts' || !gegen) return s
+    const gx = grundSeite(gegen) === 'kette' ? geo(gegen).rechts : gegen.x
+    return gx < l.x - geo(l).hb ? 'links' : 'rechts'
+  }
   // Anschlüsse je Gerät zählen, damit mehrere Leitungen nebeneinander liegen
   const zaehl = new Map<string, number>()
   const gesamt = new Map<string, number>()
-  liste.forEach((d) => [d.von, d.nach].forEach((id) => gesamt.set(id, (gesamt.get(id) ?? 0) + 1)))
-  const anschluss = (l: Lage, stich: number) => {
-    const id = l.n.k.id
+  /** Anschlussseite je Leitungsende (Schlüssel der Zählung: Gerät und Seite) */
+  const schluessel = (id: string, gegenId: string) => {
+    const l = nachId.get(id), g = nachId.get(gegenId)
+    return l ? `${id}:${seite(l, g)}` : id
+  }
+  liste.forEach((d) => [schluessel(d.von, d.nach), schluessel(d.nach, d.von)].forEach((k) => gesamt.set(k, (gesamt.get(k) ?? 0) + 1)))
+  const anschluss = (l: Lage, stich: number, gegen?: Lage) => {
+    const s = seite(l, gegen)
+    const id = `${l.n.k.id}:${s}`
     const i = zaehl.get(id) ?? 0
     zaehl.set(id, i + 1)
     const v = (i - ((gesamt.get(id) ?? 1) - 1) / 2) * 2.5
     const g = geo(l)
-    switch (seite(l)) {
+    switch (s) {
       case 'oben': return { p: [l.x + v, g.oben], s: [l.x + v, g.oben - stich] }
       case 'unten': return { p: [l.x + v, g.unten], s: [l.x + v, g.unten + stich] }
       // Einspeisekette: rechts oben anfahren, Beschriftung steht darunter
       case 'kette': return { p: [g.rechts, g.oben + 1.5 + i * 1.6], s: [g.rechts + stich, g.oben + 1.5 + i * 1.6] }
+      case 'links': return { p: [l.x - g.hb, g.mitte + v], s: [l.x - g.hb - stich, g.mitte + v] }
       default: return { p: [l.x + g.hb, g.mitte + v], s: [l.x + g.hb + stich, g.mitte + v] }
     }
   }
@@ -528,7 +544,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       const stufe = senkrecht ? (stichGesamt.get(l) ?? 1) - 1 - nr : 0
       // Stich über die übrigen Leitungen hinaus, damit er sich nicht mit ihnen kreuzt
       const q = anschluss(l, 3 + liste.length * 1.6 + stufe * 2.8)
-      const rechtsterStich = l.x + (((gesamt.get(l.n.k.id) ?? 1) - 1) / 2) * 2.5
+      const rechtsterStich = l.x + (((gesamt.get(`${l.n.k.id}:${seite(l)}`) ?? 1) - 1) / 2) * 2.5
       const ende = [senkrecht ? Math.max(q.s[0], rechtsterStich) + 3 : q.s[0] + 4, q.s[1]]
       svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
       svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
@@ -541,7 +557,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     // Geräte in der Einspeisekette werden seitlich angefahren: dort immer als Ziel routen
     if (seite(a) === 'kette' && seite(b) !== 'kette') [a, b] = [b, a]
     const stich = 3 + i * 1.6
-    const q = anschluss(a, stich), z = anschluss(b, stich)
+    const q = anschluss(a, stich, b), z = anschluss(b, stich, a)
     let pkt: number[][]
     let ecke: number[]
     if (seite(b) === 'kette' && seite(a) === 'oben' && q.p[1] > z.p[1] + 1) {
@@ -839,10 +855,10 @@ function kuerzen(s: string, max: number) {
 }
 
 // Leiterkennzeichnung im einpoligen Plan nach IEC 60617 (S00003/S00004/S00005):
-// Außenleiter als Schrägstrich (bei mehreren mit Anzahl), N mit Punkt, PE mit Querstrich
-function leiterZahl(svg: Svg, l: Lage, eltern: Lage, yQuelle: number | undefined, farbig: boolean) {
+// Außenleiter als Schrägstrich (bei mehreren mit Anzahl), N mit Punkt, PE mit Querstrich.
+// Jede Zuleitung trägt die Kennzeichnung, auch die von Geräten mit eigenen Abgängen.
+function leiterZahl(svg: Svg, l: Lage, yQuelle: number | undefined, farbig: boolean) {
   const n = l.n
-  if (n.kinder.length && eltern.n.leiter.length === n.leiter.length) return
   // Reihenfolge vom Symbol weg: PE, N, Außenleiter (Außenleiter liegt also zur Quelle hin)
   const marken: ('L' | 'N' | 'PE')[] = []
   if (n.dc) marken.push('L')
