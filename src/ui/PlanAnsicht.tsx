@@ -103,7 +103,13 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
   const anker = useRef<{ x: number; y: number; fx: number; fy: number } | null>(null)
   const breiteMm = useRef(blatt.breite)
   useEffect(() => { breiteMm.current = blatt.breite }, [blatt.breite])
-  useEffect(() => { aktZoom.current = typeof zoom === 'number' ? zoom : null }, [zoom])
+  /** setzt den Zoom; die Ref ist sofort aktuell, damit schnelle Radschritte nicht auf einem alten Wert aufsetzen */
+  const zoomSetzen = (z: number | 'fit') => {
+    aktZoom.current = typeof z === 'number' ? z : null
+    setZoom(z)
+  }
+  /** Untergrenze: ZOOM_MIN, aber nie größer als der aktuelle Zoom (Fit kann kleiner sein) */
+  const begrenze = (z: number, alt: number) => Math.min(ZOOM_MAX, Math.max(Math.min(ZOOM_MIN, alt), z))
   /** tatsächlich dargestellter Zoom, auch bei „Fit“ */
   const istZoom = (): number => {
     if (aktZoom.current != null) return aktZoom.current
@@ -121,12 +127,11 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
       const r = b.getBoundingClientRect()
       if (!r.width || !r.height) return
       const alt = istZoom()
-      const neu = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, alt * radFaktor(e)))
+      const neu = begrenze(alt * radFaktor(e), alt)
       if (neu === alt) return
       // Punkt unter dem Mauszeiger merken (relativ zum Blatt), damit er nach dem Zoomen dort bleibt
       if (!anker.current) anker.current = { x: e.clientX, y: e.clientY, fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height }
-      aktZoom.current = neu
-      setZoom(neu)
+      zoomSetzen(neu)
     }
     f.addEventListener('wheel', onRad, { passive: false })
     return () => f.removeEventListener('wheel', onRad)
@@ -176,9 +181,9 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
           <input type="checkbox" checked={farbig} onChange={(e) => { setFarbig(e.target.checked); schreibe('molecad.farbig', e.target.checked) }} /> Farbig
         </label>
         <div className="segment klein">
-          <button onClick={() => setZoom(Math.max(ZOOM_MIN, istZoom() / 1.25))} title="Verkleinern (Strg+Mausrad)">−</button>
-          <button className={zoom === 'fit' ? 'aktiv' : ''} onClick={() => setZoom('fit')} title="Einpassen">Fit</button>
-          <button onClick={() => setZoom(Math.min(ZOOM_MAX, istZoom() * 1.25))} title="Vergrößern (Strg+Mausrad)">+</button>
+          <button onClick={() => { const z = istZoom(); zoomSetzen(begrenze(z / 1.25, z)) }} title="Verkleinern (Strg+Mausrad)">−</button>
+          <button className={zoom === 'fit' ? 'aktiv' : ''} onClick={() => zoomSetzen('fit')} title="Einpassen">Fit</button>
+          <button onClick={() => { const z = istZoom(); zoomSetzen(begrenze(z * 1.25, z)) }} title="Vergrößern (Strg+Mausrad)">+</button>
         </div>
         {blaetter.length > 1 && (
           <div className="segment klein" title="Blatt (weitere Zählerstränge und Folgeblätter)">
