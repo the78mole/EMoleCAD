@@ -1,4 +1,4 @@
-export const BEISPIEL_YAML = `# MoleCAD – Beispielprojekt Einfamilienhaus
+export const BEISPIEL_YAML = `# EMoleCAD – Beispielprojekt Einfamilienhaus
 # Jede Komponente hängt über "quelle" an ihrer vorgeschalteten Komponente.
 projekt:
   titel: Einfamilienhaus Muster
