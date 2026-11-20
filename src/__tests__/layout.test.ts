@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { analysiere } from '../model/analyse'
 import { zeichnePlan } from '../schematic/render'
 import { steuerleitungen } from './fixtures'
+import { parseYaml } from '../model/yaml'
+import { BEISPIEL_YAML } from '../model/beispiel'
 
 /** y-Position einer Beschriftung im Plan */
 function textY(svg: string, text: string): number {
@@ -68,4 +70,32 @@ describe('Verbraucher-Schaltzeichen', () => {
     expect(svg.match(/A 3 3 0 0 1/g)?.length).toBe(2) // zwei Steckdosen
     expect(svg).toContain('r="1"') // Kochstellen des Herds
   })
+})
+
+describe('Leiterkennzeichnung (einpolig)', () => {
+  it('jede Zuleitung trägt die Außenleiterzahl, auch bei Geräten mit Abgängen und in der Einspeisekette', () => {
+    const p = parseYaml(BEISPIEL_YAML)
+    const a = analysiere(p)
+    const svg = zeichnePlan(a, { modus: 'einpolig', farbig: true, netz: p.netz, tabelle: true }).inhalt
+    const dreiphasig = [...a.knoten.values()].filter((n) => n.eltern && !n.def.potential && !n.dc && n.leiter.filter((l) => l.startsWith('L')).length === 3)
+    // u.a. FI mit Abgängen, Hybrid-Wechselrichter mit PV/Speicher, Zähler und SLS in der Einspeisekette
+    for (const bmk of ['-FB1', '-TB1', '-PG1', '-FC1']) expect(dreiphasig.map((n) => n.bmk)).toContain(bmk)
+    expect(svg.match(/>3<\/text>/g) ?? []).toHaveLength(dreiphasig.length)
+  })
+})
+
+describe('Datenleitungen an Geräten mit Abgängen', () => {
+  for (const modus of ['einpolig', 'allpolig'] as const) {
+    it(`werden auf der Seite der Gegenstelle angeschlossen (${modus})`, () => {
+      const p = parseYaml(BEISPIEL_YAML)
+      p.datenverbindungen = [{ von: 'PG1', nach: 'TB1', art: 'Modbus RTU' }]
+      const svg = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen, tabelle: true }).inhalt
+      const pfad = svg.match(new RegExp(`<path d="M ([^"]+)"[^>]*${STRICH}`))![1].split(' L ').map((pp) => pp.split(' ').map(Number))
+      const xTB1 = Number(svg.match(/<text x="([\d.-]+)" y="[\d.-]+"[^>]*>-TB1<\/text>/)![1])
+      // Ende am Wechselrichter: links vom Gerät, der Weg kommt von links und kreuzt das Gerät nicht
+      const [ex] = pfad[0]
+      expect(ex).toBeLessThan(xTB1 - 8)
+      expect(Math.max(...pfad.map(([x]) => x))).toBeLessThan(xTB1 - 8)
+    })
+  }
 })
