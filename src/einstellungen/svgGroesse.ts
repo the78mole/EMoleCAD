@@ -21,11 +21,12 @@ function laenge(wert: string | undefined): number | undefined {
 /** Größe aus viewBox, sonst width/height (Einheiten umgerechnet), sonst Browser-Standard 300×150.
  *  undefined, wenn kein <svg>-Element gefunden wird. */
 export function svgGroesse(text: string): { breite: number; hoehe: number } | undefined {
-  // Kommentare, XML-Deklaration und DOCTYPE vor dem Wurzelelement überspringen
-  const ohne = text.replace(/<!--[\s\S]*?-->/g, '')
-  const m = /<svg(?=[\s>/])[^>]*>/i.exec(ohne)
-  if (!m) return undefined
-  const tag = m[0]
+  // erstes <svg>-Starttag außerhalb von Kommentaren suchen (Kommentare werden übersprungen, nicht entfernt)
+  let tag: string | undefined
+  for (const m of text.matchAll(/<!--[\s\S]*?(?:-->|$)|<svg(?=[\s>/])[^>]*>/gi)) {
+    if (!m[0].startsWith('<!--')) { tag = m[0]; break }
+  }
+  if (!tag) return undefined
   const vb = (attribut(tag, 'viewBox') ?? '').trim().split(/[\s,]+/).filter(Boolean).map(Number)
   if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) return { breite: vb[2], hoehe: vb[3] }
   const w = laenge(attribut(tag, 'width')), h = laenge(attribut(tag, 'height'))
