@@ -1108,7 +1108,7 @@ function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, 
 }
 
 /** Schaltzeichen der Verbraucher nach DIN EN 60617 je Verwendung */
-export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'backofen' | 'kuehl' | 'gefrier' | 'wasch' | 'trockner' | 'spuel' | 'motor' | 'geraet' {
+export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'backofen' | 'kuehl' | 'gefrier' | 'wasch' | 'trockner' | 'spuel' | 'motor' | 'reserve' | 'geraet' {
   const v = String(n.k.params?.verwendung ?? '').toLowerCase()
   if (v.startsWith('steckdose')) return 'steckdose'
   if (v.startsWith('beleuchtung') || v.startsWith('licht')) return 'leuchte'
@@ -1120,6 +1120,7 @@ export function verbraucherArt(n: Knoten): 'steckdose' | 'leuchte' | 'herd' | 'b
   if (v.startsWith('wäschetrockner') || v.startsWith('trockner')) return 'trockner'
   if (v.startsWith('spül')) return 'spuel'
   if (v.startsWith('motor')) return 'motor'
+  if (v.startsWith('reserve')) return 'reserve'
   return 'geraet'
 }
 
@@ -1150,6 +1151,11 @@ function verbraucherZeichen(n: Knoten, svg?: Svg, x = 0, y0 = 0, innen = false):
       svg?.linie(x - 2.5, m - 2.5, x + 2.5, m + 2.5)
       svg?.linie(x - 2.5, m + 2.5, x + 2.5, m - 2.5)
       return { unten: 10 }
+    }
+    case 'reserve': {
+      // Reserve-Stromkreis: offenes Leitungsende ohne Verbraucher
+      zul(5)
+      return { unten: 6 }
     }
     case 'motor': {
       const m = y0 + 7
@@ -1265,6 +1271,11 @@ function symbolEinpolig(svg: Svg, l: Lage) {
         break
       }
       const w = 10, h = 10, bt = y0 + 2
+      if (art === 'verbraucher' && verbraucherArt(n) === 'reserve') {
+        // Reserve, aufwärts gezeichnet: offenes Leitungsende statt Gerätekasten
+        verbindung(bt + h - 5, y1)
+        break
+      }
       if (l.aufwaerts) verbindung(bt + h, y1)
       else verbindung(y0, bt)
       if (mitKindern) {
@@ -1296,6 +1307,11 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     const bx = l.x - w / 2
     const auf = !!l.aufwaerts
     for (const le of n.leiter) svg.linie(cx(l, le), auf ? bt + h : y0, cx(l, le), auf ? y1 : bt, { farbe: farbe(le) })
+    if (art === 'verbraucher' && verbraucherArt(n) === 'reserve') {
+      // Reserve: offene Leitungsenden ohne Gerätekasten
+      for (const le of n.leiter) svg.linie(cx(l, le), auf ? bt + h - 5 : bt, cx(l, le), auf ? bt + h : bt + 5, { farbe: farbe(le) })
+      return
+    }
     if (n.kinder.length) for (const le of l.aus) svg.linie(cx(l, le, l.aus), auf ? y0 : bt + h, cx(l, le, l.aus), auf ? bt : y1, { farbe: farbe(le) })
     svg.rechteck(bx, bt, w, h)
     if (art === 'verbraucher') verbraucherZeichen(n, svg, l.x, bt - 3, true)

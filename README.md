@@ -105,14 +105,14 @@ Ohne `pole` gilt der Standard des Typs; unter einer einphasigen Zuleitung wird a
 | `speicher` | Batteriespeicher (DC, wenn unter Wechselrichter) | CC | kapazitaet, leistung |
 | `wallbox` | Wallbox | XD | leistung, steuerbar |
 | `waermepumpe` | Wärmepumpe | EG | leistung, steuerbar |
-| `verbraucher` | Verbraucher / Stromkreis | je Verwendung: XD Steckdosen, EA Beleuchtung, EB Heizung/Herd, Backofen, Waschmaschine, Wäschetrockner, Spülmaschine, Elektrogerät, EC Kühl-/Gefriergerät, MA Motor | verwendung, leistung |
+| `verbraucher` | Verbraucher / Stromkreis | je Verwendung: XD Steckdosen, EA Beleuchtung, EB Heizung/Herd, Backofen, Waschmaschine, Wäschetrockner, Spülmaschine, Elektrogerät, EC Kühl-/Gefriergerät, MA Motor, XD Reserve; eigener Freitext möglich (im Projekt verwendete Texte erscheinen in der Auswahl, Kennbuchstaben dann XD) | verwendung, leistung |
 | `steuerbox` | Steuerbox / Rundsteuerempfänger | KE | art |
 | `smgw` | Smart-Meter-Gateway | KE | modell |
 | `sammelschiene` | Sammelschiene (Abgänge hängen daran) | WD | nennstrom, querschnitt |
 | `unterverteilung` | Unterverteilung | UC | ort |
 | `pas` | Potentialausgleichsschiene (ohne Quelle, siehe Potentialausgleich) | PAS | erder, querschnitt |
 
-Die Kennbuchstaben (Klasse + Unterklasse) folgen DIN EN IEC 81346-2:2019. Verbraucher werden im einpoligen Plan mit dem Schaltzeichen ihrer Verwendung nach DIN EN 60617 gezeichnet (Steckdose, Leuchte, Herd, Backofen, Kühl-/Gefriergerät, Wasch-/Spülmaschine, Wäschetrockner, Motor, sonst Elektrogerät „E“). Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
+Die Kennbuchstaben (Klasse + Unterklasse) folgen DIN EN IEC 81346-2:2019. Verbraucher werden im einpoligen Plan mit dem Schaltzeichen ihrer Verwendung nach DIN EN 60617 gezeichnet (Steckdose, Leuchte, Herd, Backofen, Kühl-/Gefriergerät, Wasch-/Spülmaschine, Wäschetrockner, Motor, Reserve als offenes Leitungsende, sonst Elektrogerät „E“). Neue Typen werden in `src/model/library.ts` ergänzt (Plansymbole in `src/schematic/render.ts`).
 
 ### Ungezählter Bereich (Vorzählerbereich)
 
