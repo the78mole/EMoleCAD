@@ -1,6 +1,6 @@
 import {
   Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, ViewportPortal, NodeChangeset, useReactFlow,
-  type Connection, type Edge, type EdgeChangeset, type IsValidConnection,
+  type Connection, type Edge, type EdgeChangeset, type IsValidConnection, type Viewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -18,6 +18,9 @@ import { aktualisieren } from '../model/ops'
 
 const nodeTypes = { komponente: KomponentenNode }
 const edgeTypes = { bus: BusKante }
+
+/** Zuletzt benutzter Ausschnitt, damit Zoom und Lage beim Ein-/Ausklappen oder Tab-Wechsel erhalten bleiben */
+let gemerkterAusschnitt: Viewport | null = null
 
 interface Props {
   projekt: Projekt
@@ -228,21 +231,10 @@ function Innen({ projekt, analyse, onChange }: Props) {
     neu(typ, pos)
   }, [neu, rf])
 
-  // Nach Ein-/Ausklappen bzw. Größenänderung neu einpassen
-  useEffect(() => {
-    const el = huelle.current
-    if (!el) return
-    let breite = el.clientWidth
-    let t: ReturnType<typeof setTimeout> | undefined
-    const ro = new ResizeObserver(() => {
-      if (Math.abs(el.clientWidth - breite) < 80) return
-      breite = el.clientWidth
-      clearTimeout(t)
-      t = setTimeout(() => rf.fitView({ padding: '6.5%', duration: 200 }), 120)
-    })
-    ro.observe(el)
-    return () => { ro.disconnect(); clearTimeout(t) }
-  }, [rf])
+  // Bewusst kein automatisches Einpassen bei Größenänderung (Eigenschaften-Panel, Ein-/Ausklappen):
+  // Zoom und Ausschnitt ändern sich nur durch Strg+Mausrad, Pinch, die Zoom-Knöpfe oder „Anordnen“.
+  // Eingepasst wird nur beim allerersten Öffnen; danach wird der gemerkte Ausschnitt wiederhergestellt.
+  const [startAusschnitt] = useState(() => gemerkterAusschnitt)
 
   const anordnen = () => {
     onChange({ ...pRef.current, editor: autoLayout(pRef.current) })
@@ -265,7 +257,9 @@ function Innen({ projekt, analyse, onChange }: Props) {
           onNodeDragStop={onNodeDragStop}
           onPaneClick={() => setAuswahl(null)}
           deleteKeyCode={['Delete', 'Backspace']}
-          fitView
+          fitView={!startAusschnitt}
+          defaultViewport={startAusschnitt ?? undefined}
+          onMoveEnd={(_, vp) => { gemerkterAusschnitt = vp }}
           fitViewOptions={{ padding: '6.5%' }}
           forceColorMode="light"
           minZoom={0.15}
