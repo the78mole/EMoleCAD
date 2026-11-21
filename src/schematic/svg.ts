@@ -70,6 +70,11 @@ export class Svg {
     )
   }
 
+  /** Bild (data:-URL), proportional eingepasst und zentriert im Rechteck */
+  bild(x: number, y: number, w: number, h: number, href: string) {
+    this.teile.push(`<image x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet" href="${esc(href)}"/>`)
+  }
+
   roh(s: string) {
     this.teile.push(s)
   }
