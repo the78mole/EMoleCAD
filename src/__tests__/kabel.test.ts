@@ -12,6 +12,9 @@ describe('Auswahl für Kabeltyp und Querschnitt', () => {
     const komponenten = [{ kabel: { typ: 'NYY-J' } }, { kabel: { typ: 'NYM-J' } }, { kabel: { typ: 'H1Z2Z2-K' } }, {}]
     expect(kabelOptionen('typ', komponenten, ['NYY-J', 'Cat7', ' '])).toEqual([...KABEL_STANDARD.typ, 'Cat7', 'H1Z2Z2-K', 'NYY-J'])
   })
+  it('Projektwerte mit Leerzeichen bleiben unverändert wählbar', () => {
+    expect(kabelOptionen('typ', [{ kabel: { typ: 'NYY-J ' } }])).toContain('NYY-J ')
+  })
   it('bestehende YAML-Werte bleiben auswählbar', () => {
     const p = parseYaml(BEISPIEL_YAML)
     const q = kabelOptionen('querschnitt', p.komponenten)

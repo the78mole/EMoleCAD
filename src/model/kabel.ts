@@ -16,9 +16,9 @@ export const KABEL_STANDARD: Record<KabelFeld, string[]> = {
 export function kabelOptionen(feld: KabelFeld, komponenten: { kabel?: Kabel }[], gespeichert: readonly string[] = []): string[] {
   const fest = KABEL_STANDARD[feld]
   const eigene = new Set<string>()
+  // Werte unverändert übernehmen (auch mit Leerzeichen), damit die Auswahl den Projektwert genau trifft
   const dazu = (w: string | undefined) => {
-    const t = w?.trim()
-    if (t && !fest.includes(t)) eigene.add(t)
+    if (w && w.trim() && !fest.includes(w)) eigene.add(w)
   }
   gespeichert.forEach(dazu)
   for (const k of komponenten) dazu(k.kabel?.[feld])

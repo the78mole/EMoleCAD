@@ -10,6 +10,7 @@ interface Props {
 export function Einstellungen({ onSchliessen }: Props) {
   const logo = useLogo()
   const kabelWerte = useKabelWerte()
+  const [kabelFehler, setKabelFehler] = useState<string>()
   const [fehler, setFehler] = useState<string>()
   const [laedt, setLaedt] = useState(false)
   const eingabe = useRef<HTMLInputElement>(null)
@@ -85,11 +86,12 @@ export function Einstellungen({ onSchliessen }: Props) {
               {kabelWerte[feld].length === 0 ? <span className="dialog-hinweis">keine</span> : kabelWerte[feld].map((w) => (
                 <span key={w} className="kabelwert">
                   {w}
-                  <button className="icon-btn" title={`„${w}“ entfernen`} aria-label={`${w} entfernen`} onClick={() => void kabelWertVergessen(feld, w)}>×</button>
+                  <button className="icon-btn" title={`„${w}“ entfernen`} aria-label={`${w} entfernen`} onClick={() => { setKabelFehler(undefined); kabelWertVergessen(feld, w).catch((e: Error) => setKabelFehler(e.message)) }}>×</button>
                 </span>
               ))}
             </div>
           ))}
+          {kabelFehler && <div className="dialog-fehler">{kabelFehler}</div>}
         </section>
       </div>
     </div>

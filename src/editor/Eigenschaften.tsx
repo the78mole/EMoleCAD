@@ -185,7 +185,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
                 optionen={kabelOptionen(feld, projekt.komponenten, kabelWerte[feld])}
                 standard={KABEL_STANDARD[feld]}
                 onAendern={(w) => setzeKabel(feld, w ?? '')}
-                onFertig={(w) => void kabelWertMerken(feld, w)}
+                onFertig={(w) => void kabelWertMerken(feld, w).catch(() => { /* Wert bleibt im Projekt, nur nicht app-weit gemerkt */ })}
                 freitextLabel={feld === 'typ' ? 'Eigener Typ …' : 'Eigener Querschnitt …'}
                 platzhalter={feld === 'typ' ? 'z. B. NYY-J' : 'z. B. 5G10'}
               />
