@@ -39,15 +39,11 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
       svg: huelle(w, h, `<rect width="${w}" height="${h}" fill="#fff"/><g transform="translate(5 5)">${plan.inhalt}</g>`),
     }
   }
-  const W = v.breite, H = v.hoehe
+  const { W, H, L, R, O, U, spalten, zeilen, sw, zh, sfHoehe, dx, dy, massstab } = aufteilung(plan, modus, v)
   const s = new Svg()
   s.rechteck(0, 0, W, H, { farbe: 'none', fuellung: '#fff' })
-  // Rahmen: 20 mm Heftrand links, sonst 10 mm
-  const L = 20, R = 10, O = 10, U = 10
   s.rechteck(L, O, W - L - R, H - O - U, { breite: 0.7, fuellung: 'none' })
-  // Planquadrate
-  const spalten = Math.round((W - L - R) / 50), zeilen = Math.round((H - O - U) / 50)
-  const sw = (W - L - R) / spalten, zh = (H - O - U) / zeilen
+  // Planquadrate: Spalten 1, 2, … und Zeilen A, B, … am Rahmen
   for (let i = 0; i < spalten; i++) {
     const x = L + i * sw
     if (i > 0) { s.linie(x, O, x, O + 3, { breite: 0.25 }); s.linie(x, H - U - 3, x, H - U, { breite: 0.25 }) }
@@ -63,9 +59,7 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
   }
 
   const info = p.projekt
-  let sfHoehe = 0
   if (v.schriftfeld === 'iso') {
-    sfHoehe = 36
     const sfB = 180
     const x0 = W - R - sfB, y0 = H - U - sfHoehe
     s.rechteck(x0, y0, sfB, sfHoehe, { breite: 0.7 })
@@ -86,7 +80,6 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
     feld(x0 + 155, y0 + 24, 25, 12, 'Blatt', `${blattNr} / ${blattGesamt}`, 2.6)
     s.text(x0 - 2, H - U - 1.5, 'erstellt mit EMoleCAD', { groesse: 1.8, anker: 'end', farbe: '#999' })
   } else if (v.schriftfeld === 'kompakt') {
-    sfHoehe = 10
     const y0 = H - U - sfHoehe
     s.linie(L, y0, W - R, y0, { breite: 0.5 })
     s.text(L + 3, y0 + 6.5, `${info.titel ?? ''}  –  ${TITEL[modus]}`, { groesse: 3.2, fett: true })
@@ -104,14 +97,34 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
   }
 
   // Zeichenfläche
-  const ax = L + 5, ay = O + 5
+  s.roh(`<g transform="translate(${dx.toFixed(2)} ${dy.toFixed(2)}) scale(${massstab.toFixed(4)})">${plan.inhalt}</g>`)
+  return { breite: W, hoehe: H, svg: huelle(W, H, s.toString()) }
+}
+
+/** Maße eines Blatts: Rahmen, Planquadrate, Schriftfeld und Lage/Maßstab der Zeichenfläche */
+function aufteilung(plan: Pick<Plan, 'breite' | 'hoehe'>, modus: Modus, v: Vorlage) {
+  const W = v.breite, H = v.hoehe
+  // Rahmen: 20 mm Heftrand links, sonst 10 mm
+  const L = 20, R = 10, O = 10, U = 10
+  const spalten = Math.round((W - L - R) / 50), zeilen = Math.round((H - O - U) / 50)
+  const sw = (W - L - R) / spalten, zh = (H - O - U) / zeilen
+  const sfHoehe = v.schriftfeld === 'iso' ? 36 : v.schriftfeld === 'kompakt' ? 10 : 0
   const aw = W - L - R - 10
   const ah = H - O - U - 10 - sfHoehe - (modus === 'allpolig' ? 6 : 0)
   const massstab = Math.min(aw / plan.breite, ah / plan.hoehe, 1.5)
-  const dx = ax // linksbündig
-  const dy = ay
-  s.roh(`<g transform="translate(${dx.toFixed(2)} ${dy.toFixed(2)}) scale(${massstab.toFixed(4)})">${plan.inhalt}</g>`)
-  return { breite: W, hoehe: H, svg: huelle(W, H, s.toString()) }
+  // linksbündig
+  return { W, H, L, R, O, U, spalten, zeilen, sw, zh, sfHoehe, dx: L + 5, dy: O + 5, massstab }
+}
+
+/** Planquadrat („B1“: Zeile B, Spalte 1) eines Punkts der Zeichnung (Planmaß) auf dem Blatt;
+ *  undefined bei der Vorlage ohne feste Blattgröße (dort zeichnet erzeugeBlatt keine Randeinteilung) */
+export function planquadrat(plan: Pick<Plan, 'breite' | 'hoehe'>, modus: Modus, v: Vorlage, x: number, y: number): string | undefined {
+  if (v.breite === 0) return undefined
+  const a = aufteilung(plan, modus, v)
+  const px = a.dx + x * a.massstab, py = a.dy + y * a.massstab
+  const sp = Math.min(a.spalten, Math.max(1, Math.floor((px - a.L) / a.sw) + 1))
+  const ze = Math.min(a.zeilen, Math.max(1, Math.floor((py - a.O) / a.zh) + 1))
+  return `${String.fromCharCode(64 + ze)}${sp}`
 }
 
 function huelle(w: number, h: number, inhalt: string) {

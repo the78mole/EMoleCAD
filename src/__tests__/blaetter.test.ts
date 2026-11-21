@@ -4,6 +4,8 @@ import { parseYaml } from '../model/yaml'
 import { analysiere } from '../model/analyse'
 import { autoLayout } from '../model/ops'
 import { blattTeilung, zeichnePlaene } from '../schematic/blaetter'
+import { planquadrat, VORLAGEN } from '../schematic/blatt'
+import { zeichnePlan } from '../schematic/render'
 import { modul2, verteilung } from './fixtures'
 
 describe('Blattaufteilung', () => {
@@ -24,18 +26,18 @@ describe('Blattaufteilung', () => {
     const p = modul2()
     for (const modus of ['einpolig', 'allpolig'] as const) {
       const [b1, b2] = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen, pa: p.potentialausgleich, tabelle: true })
-      expect(b1.inhalt).toContain('-FC10 → Blatt 2')
-      expect(b1.inhalt).toContain('LMN → -PG2 (Blatt 2)')
+      expect(b1.inhalt).toMatch(/>S\.2<\/text>\s*<text[^>]*>-FC10</)
+      expect(b1.inhalt).toContain('LMN: -PG2  S.2')
       expect(b1.inhalt).not.toContain('Zähler § 14a')
-      expect(b2.inhalt).toContain('von -WD1 (Blatt 1)')
-      expect(b2.inhalt).toContain('LMN → -KE1 (Blatt 1)')
+      expect(b2.inhalt).toContain('von -WD1  S.1')
+      expect(b2.inhalt).toContain('LMN: -KE1  S.1')
       expect(b2.inhalt).toContain('Zähler § 14a')
     }
   })
   it('Startnummer verschiebt die Verweise (PDF mit beiden Plänen)', () => {
     const p = modul2()
     const [b3] = zeichnePlaene(analysiere(p), { modus: 'allpolig', farbig: true, netz: p.netz }, 3)
-    expect(b3.inhalt).toContain('-FC10 → Blatt 4')
+    expect(b3.inhalt).toMatch(/>S\.4<\/text>\s*<text[^>]*>-FC10</)
   })
   it('Editor-Anordnung hält SMGW und Steuerbox vor dem zweiten Zählerstrang', () => {
     const pos = autoLayout(modul2())
@@ -66,7 +68,7 @@ describe('Blattaufteilung – Randfälle', () => {
   it('Verweistext vergrößert die Planbreite, damit nichts abgeschnitten wird', () => {
     const p = modul2()
     const [, b2] = zeichnePlaene(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, daten: p.datenverbindungen, tabelle: false })
-    const x = Number(/<text x="([\d.]+)"[^>]*>LMN → -KE1/.exec(b2.inhalt)![1])
+    const x = Number(/<text x="([\d.]+)"[^>]*>LMN: -KE1/.exec(b2.inhalt)![1])
     expect(b2.breite).toBeGreaterThan(x + 15)
   })
 })
@@ -77,7 +79,7 @@ describe('Verweis-Stiche', () => {
     p.datenverbindungen!.push({ von: 'KE2', nach: 'EG1', art: 'Steuersignal' }, { von: 'KE2', nach: 'XD5', art: 'Steuersignal' })
     for (const modus of ['einpolig', 'allpolig'] as const) {
       const [b1] = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen })
-      const ys = [...b1.inhalt.matchAll(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Steuersignal → /g)].map((m) => Number(m[1]))
+      const ys = [...b1.inhalt.matchAll(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Steuersignal: /g)].map((m) => Number(m[1]))
       expect(ys).toHaveLength(2)
       expect(Math.abs(ys[0] - ys[1])).toBeGreaterThan(2)
     }
@@ -126,9 +128,9 @@ describe('Folgeblätter', () => {
     for (const modus of ['einpolig', 'allpolig'] as const) {
       const b = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, maxAbgaenge: 10 })
       expect(b.length).toBeGreaterThan(1)
-      expect(b[0].inhalt).toMatch(/-FB\d … -FB\d → Blatt 2|-FB\d → Blatt 2/)
+      expect(b[0].inhalt).toMatch(/>S\.2<\/text>\s*<text[^>]*>-FB\d+( \.\.\. -FB\d+)?</)
       for (const s of b.slice(1)) {
-        expect(s.inhalt).toContain('von -QB1 (Blatt 1)')
+        expect(s.inhalt).toContain('von -QB1  S.1')
         // der Trennschalter selbst wird auf dem Folgeblatt nicht noch einmal gezeichnet
         expect(s.inhalt).not.toMatch(/>-QB1</)
       }
@@ -155,8 +157,45 @@ describe('Folgeblätter – Hilfsleitungen', () => {
       const b = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, pa: p.potentialausgleich, maxAbgaenge: 10 })
       const blatt = b.findIndex((s) => s.inhalt.includes('>-EV20<'))
       expect(blatt).toBeGreaterThan(0)
-      expect(b[blatt].inhalt).toContain('-PAS1 (Blatt 1)')
-      expect(b[0].inhalt).toContain(`-EV20 (Blatt ${blatt + 1})`)
+      expect(b[blatt].inhalt).toContain('-PAS1  S.1')
+      expect(b[0].inhalt).toContain(`-EV20  S.${blatt + 1}`)
     }
+  })
+})
+
+describe('Querverweise mit Planquadrat', () => {
+  const a3 = VORLAGEN.find((v) => v.id === 'a3')!
+  it('Blattangabe enthält das Planquadrat des Ziels auf dessen Blatt', () => {
+    const p = verteilung([4, 4, 4, 4, 4])
+    // Ziele: -FB3 (Blatt 2) und -FB5 (Blatt 3); nachgerechnet aus Lage, Maßstab und Randeinteilung,
+    // allpolig liegt -FB5 wegen des größeren Maßstabs knapp in Zeile B
+    const erwartet = { einpolig: ['S.2-A2', 'S.3-A1'], allpolig: ['S.2-A2', 'S.3-B1'] }
+    for (const modus of ['einpolig', 'allpolig'] as const) {
+      const b = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, maxAbgaenge: 10 }, 1, a3)
+      expect(b[0].verweise).toEqual(['FB3', 'FB5'])
+      const refs = [...b[0].inhalt.matchAll(/>(S\.\d+-[A-Z]\d+)</g)].map((m) => m[1])
+      expect(refs, modus).toEqual(erwartet[modus])
+      for (const s of b) {
+        // keine Platzhalter und keine Zeichen außerhalb Latin-1 (PDF-Export)
+        expect(s.inhalt).not.toContain('\u0001')
+        expect([...s.inhalt].every((c) => c.charCodeAt(0) <= 0xff)).toBe(true)
+      }
+      expect(b[1].inhalt).toMatch(/von -QB1 {2}S\.1-[A-Z]\d/)
+    }
+  })
+  it('ohne zeichnePlaene steht nur die Seite, keine Platzhalter', () => {
+    const p = verteilung([4, 4, 4, 4, 4])
+    const t = blattTeilung(analysiere(p), { maxAbgaenge: 10 })
+    const plan = zeichnePlan(t[0].sicht, { modus: 'einpolig', farbig: true, netz: p.netz, blatt: t[0].bezug })
+    expect(plan.inhalt).not.toContain('\u0001')
+    expect(plan.inhalt).toContain('>S.2<')
+  })
+  it('Planquadrat folgt der Lage auf dem Blatt', () => {
+    const plan = { breite: 380, hoehe: 200 }
+    // A3: Rahmen ab x=20, y=10, 8 Spalten zu 48,75 mm, 6 Zeilen zu 46,2 mm; Zeichenfläche ab (25, 15), Maßstab 1
+    expect(planquadrat(plan, 'einpolig', a3, 0, 0)).toBe('A1')
+    expect(planquadrat(plan, 'einpolig', a3, 60, 70)).toBe('B2')
+    expect(planquadrat(plan, 'einpolig', a3, 375, 195)).toBe('E8')
+    expect(planquadrat(plan, 'einpolig', VORLAGEN.find((v) => v.id === 'frei')!, 60, 70)).toBeUndefined()
   })
 })

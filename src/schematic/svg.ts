@@ -2,6 +2,13 @@
 export const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+/** Zeichen außerhalb von Latin-1 kann der PDF-Export mit den Standardschriften nicht darstellen:
+ *  jsPDF schreibt den ganzen Text dann als UTF-16, was gesperrte Schrift mit „!’“ ergibt.
+ *  Nur für den PDF-Export; SVG und Vorschau behalten den Originaltext. */
+const ERSATZ: Record<string, string> = { '→': '->', '←': '<-', '…': '...', '–': '-', '—': '-', '‘': "'", '’': "'", '“': '"', '”': '"', '„': '"', '≥': '>=', '≤': '<=', '−': '-' }
+// oxlint-disable-next-line no-control-regex -- Platzhalter bzw. Latin-1-Bereich bewusst
+export const pdfText = (s: string) => s.replace(/[^\u0000-\u00ff]/g, (c) => ERSATZ[c] ?? '?')
+
 const f = (v: number) => (Math.round(v * 100) / 100).toString()
 
 export interface StrichOpt {
