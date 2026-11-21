@@ -22,3 +22,6 @@ async function tx<T>(modus: IDBTransactionMode, f: (s: IDBObjectStore) => IDBReq
 export const idbHolen = <T>(k: string) => tx<T | undefined>('readonly', (s) => s.get(k)).catch(() => undefined)
 export const idbSetzen = (k: string, v: unknown) => tx('readwrite', (s) => s.put(v, k)).then(() => undefined).catch(() => undefined)
 export const idbLoeschen = (k: string) => tx('readwrite', (s) => s.delete(k)).then(() => undefined).catch(() => undefined)
+/** Wie idbSetzen/idbLoeschen, aber Fehler (Speicher voll, IndexedDB gesperrt) werden weitergereicht */
+export const idbSchreibenStreng = (k: string, v: unknown) => tx('readwrite', (s) => s.put(v, k)).then(() => undefined)
+export const idbLoeschenStreng = (k: string) => tx('readwrite', (s) => s.delete(k)).then(() => undefined)

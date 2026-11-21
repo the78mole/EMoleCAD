@@ -102,8 +102,11 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
       s.bild(L + 2, y0 + 1, lw, lh, logo.daten)
       tx = L + 2 + lw + 3
     }
-    s.text(tx, y0 + 6.5, `${info.titel ?? ''}  –  ${TITEL[modus]}`, { groesse: 3.2, fett: true })
-    s.text(W - R - 3, y0 + 6.5, `${info.ersteller ?? ''}  ${info.datum ?? ''}   ${p.netz.form}   Blatt ${blattNr}/${blattGesamt}`, { groesse: 2.6, anker: 'end' })
+    const rechts = `${info.ersteller ?? ''}  ${info.datum ?? ''}   ${p.netz.form}   Blatt ${blattNr}/${blattGesamt}`
+    // Titel auf den Platz bis zu den Angaben rechts kürzen (Breite geschätzt, Helvetica)
+    const platz = W - R - 3 - textBreite(rechts, 2.6) - 6 - tx
+    s.text(tx, y0 + 6.5, kuerzen(`${info.titel ?? ''}  –  ${TITEL[modus]}`, 3.2, platz, true), { groesse: 3.2, fett: true })
+    s.text(W - R - 3, y0 + 6.5, rechts, { groesse: 2.6, anker: 'end' })
   }
 
   if (modus === 'allpolig' && farbig) {
@@ -119,6 +122,18 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
   // Zeichenfläche
   s.roh(`<g transform="translate(${dx.toFixed(2)} ${dy.toFixed(2)}) scale(${massstab.toFixed(4)})">${plan.inhalt}</g>`)
   return { breite: W, hoehe: H, svg: huelle(W, H, s.toString()) }
+}
+
+/** grob geschätzte Textbreite in mm (Helvetica, mittlere Zeichenbreite) */
+function textBreite(t: string, groesse: number, fett = false) {
+  return t.length * groesse * (fett ? 0.6 : 0.55)
+}
+
+/** Text mit „…“ kürzen, bis er in die Breite passt */
+function kuerzen(t: string, groesse: number, breite: number, fett = false) {
+  if (textBreite(t, groesse, fett) <= breite) return t
+  const n = Math.max(0, Math.floor(breite / (groesse * (fett ? 0.6 : 0.55))) - 1)
+  return t.slice(0, n).trimEnd() + '…'
 }
 
 /** Maße eines Blatts: Rahmen, Planquadrate, Schriftfeld und Lage/Maßstab der Zeichenfläche */

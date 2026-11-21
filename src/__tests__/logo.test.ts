@@ -29,3 +29,13 @@ describe('Logo im Schriftfeld', () => {
     expect(erzeugeBlatt(plan, p, 'einpolig', vorlage('frei'), 1, 1, true, logo).svg).not.toContain('<image')
   })
 })
+
+describe('kompaktes Schriftfeld mit langem Titel', () => {
+  it('kürzt den Titel vor den Angaben rechts', () => {
+    const lang = { ...p, projekt: { ...p.projekt, titel: 'Sehr langer Projekttitel '.repeat(10) } }
+    const svg = erzeugeBlatt(plan, lang, 'einpolig', vorlage('a4k'), 1, 1, true, logo).svg
+    const titel = /<text x="41"[^>]*>([^<]*)<\/text>/.exec(svg)![1]
+    expect(titel.endsWith('…')).toBe(true)
+    expect(titel.length).toBeLessThan(lang.projekt.titel.length)
+  })
+})

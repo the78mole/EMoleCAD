@@ -11,6 +11,8 @@ export function Einstellungen({ onSchliessen }: Props) {
   const [fehler, setFehler] = useState<string>()
   const [laedt, setLaedt] = useState(false)
   const eingabe = useRef<HTMLInputElement>(null)
+  /** zählt Aktionen hoch; ein noch laufendes Einlesen wird verworfen, wenn inzwischen etwas Neueres passiert ist */
+  const aktion = useRef(0)
 
   useEffect(() => {
     const taste = (e: KeyboardEvent) => { if (e.key === 'Escape') onSchliessen() }
@@ -20,16 +22,29 @@ export function Einstellungen({ onSchliessen }: Props) {
 
   const gewaehlt = async (f: File | undefined) => {
     if (!f) return
+    const nr = ++aktion.current
     setFehler(undefined)
     setLaedt(true)
     try {
-      logoSetzen(await logoAusDatei(f))
+      const l = await logoAusDatei(f)
+      if (nr === aktion.current) await logoSetzen(l)
     } catch (e) {
-      setFehler((e as Error).message)
+      if (nr === aktion.current) setFehler((e as Error).message)
     } finally {
-      setLaedt(false)
+      if (nr === aktion.current) setLaedt(false)
       if (eingabe.current) eingabe.current.value = ''
     }
+  }
+
+  const abbrechen = () => {
+    ++aktion.current
+    setLaedt(false)
+  }
+
+  const entfernen = async () => {
+    abbrechen()
+    setFehler(undefined)
+    try { await logoSetzen(undefined) } catch (e) { setFehler((e as Error).message) }
   }
 
   return (
@@ -43,7 +58,7 @@ export function Einstellungen({ onSchliessen }: Props) {
           <h3>Logo im Schriftfeld</h3>
           <p className="dialog-hinweis">
             Erscheint im Schriftfeld jedes Blatts sowie im SVG- und PDF-Export. PNG, JPG oder SVG (SVG bleibt im PDF vektoriell).
-            Das Logo wird nur in diesem Browser gespeichert, gilt für alle Projekte und wird nicht hochgeladen.
+            Das Logo wird nur in diesem Browser gespeichert (getrennt vom Projektentwurf), gilt für alle Projekte und wird nicht hochgeladen.
           </p>
           <div className="logo-vorschau">
             {logo ? <img src={logo.daten} alt="Logo" /> : <span>Kein Logo hinterlegt</span>}
@@ -52,7 +67,7 @@ export function Einstellungen({ onSchliessen }: Props) {
           <div className="dialog-knoepfe">
             <input ref={eingabe} type="file" accept={[...LOGO_TYPEN, '.svg', '.png', '.jpg', '.jpeg'].join(',')} hidden onChange={(e) => void gewaehlt(e.target.files?.[0])} />
             <button className="primaer" onClick={() => eingabe.current?.click()} disabled={laedt}>{laedt ? 'Lese…' : logo ? 'Anderes Logo wählen…' : 'Logo wählen…'}</button>
-            {logo && <button onClick={() => { setFehler(undefined); logoSetzen(undefined) }}>Logo entfernen</button>}
+            {laedt ? <button onClick={abbrechen}>Abbrechen</button> : logo && <button onClick={() => void entfernen()}>Logo entfernen</button>}
           </div>
           {fehler && <div className="dialog-fehler">{fehler}</div>}
         </section>

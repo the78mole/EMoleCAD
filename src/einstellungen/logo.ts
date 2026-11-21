@@ -1,8 +1,11 @@
 import { useSyncExternalStore } from 'react'
+import { idbHolen, idbLoeschenStreng, idbSchreibenStreng } from '../speicher/idb'
+import { svgGroesse } from './svgGroesse'
 
 /**
  * Firmen-/Ersteller-Logo für das Schriftfeld. App-weite Einstellung: liegt nur
- * im Browser (localStorage), nicht im Projekt-YAML, und wird nirgends hochgeladen.
+ * im Browser (IndexedDB, getrennt vom localStorage-Entwurf des Projekts), nicht
+ * im Projekt-YAML, und wird nirgends hochgeladen.
  */
 export interface Logo {
   /** Bild als data:-URL (PNG, JPEG oder SVG) */
@@ -18,7 +21,9 @@ export interface Logo {
 const SCHLUESSEL = 'molecad.logo'
 /** Rasterbilder werden auf diese Kantenlänge verkleinert (reicht für 300 dpi bei ~40 mm) */
 const MAX_PX = 800
-/** Obergrenze der gespeicherten data:-URL; localStorage fasst je Origin nur ~5 MB */
+/** Dateien darüber gar nicht erst einlesen/dekodieren */
+const MAX_DATEI = 10 * 1024 * 1024
+/** Obergrenze der gespeicherten data:-URL (hält Blätter, SVG- und PDF-Export klein) */
 const MAX_ZEICHEN = 1_500_000
 export const LOGO_TYPEN = ['image/png', 'image/jpeg', 'image/svg+xml']
 
@@ -27,39 +32,41 @@ function istLogo(v: unknown): v is Logo {
   return !!l && typeof l.daten === 'string' && /^data:image\/(png|jpeg|svg\+xml)[;,]/.test(l.daten) && l.breite > 0 && l.hoehe > 0
 }
 
-function lesen(): Logo | undefined {
-  try {
-    const v = JSON.parse(localStorage.getItem(SCHLUESSEL) ?? 'null')
-    return istLogo(v) ? v : undefined
-  } catch {
-    return undefined
-  }
-}
-
-let aktuell = lesen()
+let aktuell: Logo | undefined
 const hoerer = new Set<() => void>()
 const melden = () => hoerer.forEach((h) => h())
 
+/** Stand aus IndexedDB übernehmen (beim Start und wenn ein anderer Tab das Logo ändert) */
+async function neuLaden() {
+  const v = await idbHolen<unknown>(SCHLUESSEL)
+  aktuell = istLogo(v) ? v : undefined
+  melden()
+}
+
+// Andere Tabs benachrichtigen; der Kanal lebt unabhängig davon, ob gerade jemand abonniert hat
+const kanal = typeof BroadcastChannel === 'function' ? new BroadcastChannel(SCHLUESSEL) : undefined
+if (kanal) kanal.onmessage = () => void neuLaden()
+if (typeof indexedDB !== 'undefined') void neuLaden()
+
 export const logoHolen = () => aktuell
 
-/** Logo speichern (undefined = entfernen). Wirft, wenn der Browser-Speicher voll ist. */
-export function logoSetzen(l: Logo | undefined) {
+/** Logo speichern (undefined = entfernen). Wirft, wenn der Browser es nicht speichern konnte;
+ *  der angezeigte Stand ändert sich dann nicht. */
+export async function logoSetzen(l: Logo | undefined) {
   try {
-    if (l) localStorage.setItem(SCHLUESSEL, JSON.stringify(l))
-    else localStorage.removeItem(SCHLUESSEL)
+    if (l) await idbSchreibenStreng(SCHLUESSEL, l)
+    else await idbLoeschenStreng(SCHLUESSEL)
   } catch {
-    if (l) throw new Error('Das Logo passt nicht in den Browser-Speicher. Bitte ein kleineres Bild wählen.')
+    throw new Error(l ? 'Das Logo konnte im Browser nicht gespeichert werden (Speicher voll oder gesperrt).' : 'Das Logo konnte nicht entfernt werden.')
   }
   aktuell = l
   melden()
+  kanal?.postMessage('geaendert')
 }
 
 function abonnieren(h: () => void) {
   hoerer.add(h)
-  // Änderung in einem anderen Tab übernehmen
-  const ausAnderemTab = (e: StorageEvent) => { if (e.key === SCHLUESSEL) { aktuell = lesen(); melden() } }
-  window.addEventListener('storage', ausAnderemTab)
-  return () => { hoerer.delete(h); window.removeEventListener('storage', ausAnderemTab) }
+  return () => { hoerer.delete(h) }
 }
 
 export function useLogo(): Logo | undefined {
@@ -80,17 +87,6 @@ const bildLaden = (url: string) => new Promise<HTMLImageElement>((ok, fehler) =>
   i.src = url
 })
 
-/** Größe eines SVG aus width/height bzw. viewBox (Bilder ohne Angabe liefern im Browser 0 oder 300×150) */
-export function svgGroesse(text: string): { breite: number; hoehe: number } | undefined {
-  const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
-  const el = doc.documentElement
-  if (el.nodeName !== 'svg') return undefined
-  const vb = (el.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number)
-  if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) return { breite: vb[2], hoehe: vb[3] }
-  const w = parseFloat(el.getAttribute('width') ?? ''), h = parseFloat(el.getAttribute('height') ?? '')
-  return w > 0 && h > 0 ? { breite: w, hoehe: h } : undefined
-}
-
 function base64(text: string) {
   let bin = ''
   for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
@@ -101,26 +97,33 @@ function base64(text: string) {
 export async function logoAusDatei(f: File): Promise<Logo> {
   const typ = f.type || (/\.svg$/i.test(f.name) ? 'image/svg+xml' : '')
   if (!LOGO_TYPEN.includes(typ)) throw new Error('Bitte ein PNG-, JPG- oder SVG-Bild wählen.')
+  if (f.size > MAX_DATEI) throw new Error('Die Datei ist zu groß (max. 10 MB).')
   let logo: Logo
   if (typ === 'image/svg+xml') {
     const text = await f.text()
     const g = svgGroesse(text)
-    if (!g) throw new Error('Die SVG-Datei ist ungültig oder hat weder viewBox noch width/height.')
+    if (!g) throw new Error('Die Datei ist kein gültiges SVG.')
     logo = { daten: `data:image/svg+xml;base64,${base64(text)}`, ...g, name: f.name }
   } else {
-    const url = await alsDataUrl(f)
-    const img = await bildLaden(url)
-    const k = Math.min(1, MAX_PX / Math.max(img.naturalWidth, img.naturalHeight))
-    const breite = Math.max(1, Math.round(img.naturalWidth * k)), hoehe = Math.max(1, Math.round(img.naturalHeight * k))
-    let daten = url
-    if (k < 1) {
-      const c = document.createElement('canvas')
-      c.width = breite
-      c.height = hoehe
-      c.getContext('2d')!.drawImage(img, 0, 0, breite, hoehe)
-      daten = typ === 'image/jpeg' ? c.toDataURL('image/jpeg', 0.9) : c.toDataURL('image/png')
+    const url = URL.createObjectURL(f)
+    try {
+      const img = await bildLaden(url)
+      const k = Math.min(1, MAX_PX / Math.max(img.naturalWidth, img.naturalHeight))
+      const breite = Math.max(1, Math.round(img.naturalWidth * k)), hoehe = Math.max(1, Math.round(img.naturalHeight * k))
+      let daten: string
+      if (k < 1) {
+        const c = document.createElement('canvas')
+        c.width = breite
+        c.height = hoehe
+        c.getContext('2d')!.drawImage(img, 0, 0, breite, hoehe)
+        daten = typ === 'image/jpeg' ? c.toDataURL('image/jpeg', 0.9) : c.toDataURL('image/png')
+      } else {
+        daten = await alsDataUrl(f)
+      }
+      logo = { daten, breite, hoehe, name: f.name }
+    } finally {
+      URL.revokeObjectURL(url)
     }
-    logo = { daten, breite, hoehe, name: f.name }
   }
   if (logo.daten.length > MAX_ZEICHEN) throw new Error('Das Logo ist zu groß (max. ca. 1 MB). Bitte ein kleineres Bild wählen.')
   return logo
