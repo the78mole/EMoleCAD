@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Analyse } from '../model/analyse'
-import { typDef } from '../model/library'
+import { paramOptionen, typDef } from '../model/library'
 import type { Komponente, ParamWert, Projekt } from '../model/types'
 import { datenArtSetzen, datenTrennen, datenVerbinden, paQuerschnittSetzen, paTrennen, paVerbinden } from '../model/ops'
+
+/** Wert der Auswahl-Option „Eigener Text …“ (kann nicht mit einem echten Wert kollidieren) */
+const FREITEXT = '\u0000freitext'
 
 interface Props {
   projekt: Projekt
@@ -20,6 +23,10 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
   // Entwurf des ID-Felds zurücksetzen, wenn eine andere Komponente gewählt oder die ID von außen geändert wird
   // oxlint-disable-next-line react/set-state-in-effect -- bewusste Synchronisation eines lokalen Eingabeentwurfs
   useEffect(() => setIdEntwurf(id), [id])
+  // Parameter, bei denen gerade „Eigener Text…“ gewählt wurde (Freitextfeld sichtbar)
+  const [freiFelder, setFreiFelder] = useState<string[]>([])
+  // oxlint-disable-next-line react/set-state-in-effect -- Freitext-Modus gilt nur für die gewählte Komponente
+  useEffect(() => setFreiFelder([]), [id])
   if (!k) return null
   const def = typDef(k.typ)
   const knoten = analyse.knoten.get(id)
@@ -130,6 +137,40 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
               <input type="checkbox" checked={!!wert} onChange={(e) => setzeParam(pd.key, e.target.checked)} /> {pd.label}
             </label>
           )
+        if (pd.art === 'auswahl' && pd.frei) {
+          const text = wert === undefined ? '' : String(wert)
+          const istEigen = text !== '' && !(pd.optionen ?? []).includes(text)
+          const feld = istEigen || freiFelder.includes(pd.key)
+          const optionen = paramOptionen(pd, k.typ, projekt.komponenten)
+          return (
+            <label key={pd.key}>{titel}
+              <select
+                value={feld && !istEigen ? FREITEXT : text}
+                onChange={(e) => {
+                  if (e.target.value === FREITEXT) {
+                    setFreiFelder((f) => [...f.filter((x) => x !== pd.key), pd.key])
+                    setzeParam(pd.key, undefined)
+                  } else {
+                    setFreiFelder((f) => f.filter((x) => x !== pd.key))
+                    setzeParam(pd.key, e.target.value)
+                  }
+                }}
+              >
+                <option value="">–</option>
+                {optionen.map((o) => <option key={o}>{o}</option>)}
+                <option value={FREITEXT}>Eigener Text …</option>
+              </select>
+              {feld && (
+                <input
+                  autoFocus={!istEigen}
+                  value={text}
+                  placeholder="eigene Bezeichnung, z. B. Sauna"
+                  onChange={(e) => setzeParam(pd.key, e.target.value)}
+                />
+              )}
+            </label>
+          )
+        }
         if (pd.art === 'auswahl')
           return (
             <label key={pd.key}>{titel}
