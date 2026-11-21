@@ -1,6 +1,12 @@
 import type { Projekt } from '../model/types'
 import type { Plan, Modus } from './render'
 import { Svg, esc } from './svg'
+import type { Logo } from '../einstellungen/logo'
+
+/** Logo im Schriftfeld (App-Einstellung) */
+export type BlattLogo = Pick<Logo, 'daten' | 'breite' | 'hoehe'>
+/** Breite des Logofelds links neben dem ISO-Schriftfeld in mm */
+const LOGO_FELD = 40
 
 export interface Vorlage {
   id: string
@@ -31,7 +37,7 @@ const TITEL: Record<Modus, string> = {
   allpolig: 'Stromlaufplan (allpolig)',
 }
 
-export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, blattNr = 1, blattGesamt = 1, farbig = true): Blatt {
+export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, blattNr = 1, blattGesamt = 1, farbig = true, logo?: BlattLogo): Blatt {
   if (v.breite === 0) {
     const w = plan.breite + 10, h = plan.hoehe + 10
     return {
@@ -78,11 +84,25 @@ export function erzeugeBlatt(plan: Plan, p: Projekt, modus: Modus, v: Vorlage, b
     feld(x0 + 110, y0 + 24, 20, 12, 'Rev.', info.revision ?? '', 2.6)
     feld(x0 + 130, y0 + 24, 25, 12, 'Netz', `${p.netz.form}`, 2.6)
     feld(x0 + 155, y0 + 24, 25, 12, 'Blatt', `${blattNr} / ${blattGesamt}`, 2.6)
-    s.text(x0 - 2, H - U - 1.5, 'erstellt mit EMoleCAD', { groesse: 1.8, anker: 'end', farbe: '#999' })
+    let links = x0
+    if (logo) {
+      // eigenes Feld links neben dem Schriftfeld, volle Höhe
+      links = x0 - LOGO_FELD
+      s.rechteck(links, y0, LOGO_FELD, sfHoehe, { breite: 0.7, fuellung: '#fff' })
+      s.bild(links + 2, y0 + 2, LOGO_FELD - 4, sfHoehe - 4, logo.daten)
+    }
+    s.text(links - 2, H - U - 1.5, 'erstellt mit EMoleCAD', { groesse: 1.8, anker: 'end', farbe: '#999' })
   } else if (v.schriftfeld === 'kompakt') {
     const y0 = H - U - sfHoehe
     s.linie(L, y0, W - R, y0, { breite: 0.5 })
-    s.text(L + 3, y0 + 6.5, `${info.titel ?? ''}  –  ${TITEL[modus]}`, { groesse: 3.2, fett: true })
+    let tx = L + 3
+    if (logo) {
+      // Logo links in der Zeile, Höhe 8 mm, Breite nach Seitenverhältnis (max. 30 mm)
+      const lh = sfHoehe - 2, lw = Math.min(30, lh * (logo.breite / logo.hoehe))
+      s.bild(L + 2, y0 + 1, lw, lh, logo.daten)
+      tx = L + 2 + lw + 3
+    }
+    s.text(tx, y0 + 6.5, `${info.titel ?? ''}  –  ${TITEL[modus]}`, { groesse: 3.2, fett: true })
     s.text(W - R - 3, y0 + 6.5, `${info.ersteller ?? ''}  ${info.datum ?? ''}   ${p.netz.form}   Blatt ${blattNr}/${blattGesamt}`, { groesse: 2.6, anker: 'end' })
   }
 

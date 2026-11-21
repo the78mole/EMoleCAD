@@ -9,6 +9,7 @@ import { YamlEditor } from './ui/YamlEditor'
 import { dateiname } from './ui/export'
 import { aktuelleDatei, merkeZuletzt, setzeAktuelleDatei, speicherort, zuletzt, type DateiRef } from './speicher'
 import { DateiMenue } from './ui/DateiMenue'
+import { Einstellungen } from './ui/Einstellungen'
 
 const SPEICHER = 'molecad.yaml'
 const GESPEICHERT = 'molecad.gespeichert'
@@ -43,6 +44,8 @@ export default function App() {
     try { localStorage.setItem('molecad.eingeklappt', w) } catch { /* egal */ }
   }
   const [meldungenOffen, setMeldungenOffen] = useState(true)
+  const [einstellungenOffen, setEinstellungenOffen] = useState(false)
+  const einstellungenZu = useCallback(() => setEinstellungenOffen(false), [])
   const [datei, setDatei] = useState<DateiRef | undefined>(aktuelleDatei)
   const [gespeichert, setGespeichert] = useState<string | null>(() => { try { return localStorage.getItem(GESPEICHERT) } catch { return null } })
   const [status, setStatus] = useState<{ text: string; fehler?: boolean }>()
@@ -206,7 +209,9 @@ export default function App() {
           onSpeichern={speichernDatei}
           onSpeichernUnter={speichernUnter}
         />
+        <button className="einstellungen-knopf" onClick={() => setEinstellungenOffen(true)} title="Einstellungen (Logo im Schriftfeld)" aria-label="Einstellungen">⚙</button>
       </header>
+      {einstellungenOffen && <Einstellungen onSchliessen={einstellungenZu} />}
       <main className="haupt">
         {eingeklappt === 'editor' ? (
           <button className="leiste-zu" onClick={() => klappe('keins')} title="Editor einblenden"><span>Editor ▸</span></button>

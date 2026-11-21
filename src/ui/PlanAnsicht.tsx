@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Analyse } from '../model/analyse'
 import type { Projekt } from '../model/types'
-import { erzeugeBlatt, VORLAGEN, type Blatt } from '../schematic/blatt'
+import { erzeugeBlatt, VORLAGEN, type Blatt, type BlattLogo } from '../schematic/blatt'
+import { useLogo } from '../einstellungen/logo'
 import { zeichnePlaene } from '../schematic/blaetter'
 import type { Anordnung, Modus } from '../schematic/render'
 import { dateiname, exportierePdf, herunterladen } from './export'
@@ -19,6 +20,8 @@ export interface DarstellungsOptionen {
   tabelle: boolean
   /** Endstromkreise je Blatt: 'auto' richtet sich nach der Blattvorlage, 0 = unbegrenzt */
   abgaenge: number | 'auto'
+  /** Logo im Schriftfeld (App-Einstellung) */
+  logo?: BlattLogo
 }
 
 /** Endstromkreise je Blatt, bevor auf ein Folgeblatt umgebrochen wird */
@@ -62,7 +65,7 @@ export function erzeugeBlaetter(projekt: Projekt, analyse: Analyse, d: Darstellu
     const opt = { modus: m, farbig: d.farbig, netz: projekt.netz, anordnung: d.anordnung, tabelle: d.tabelle, maxAbgaenge: maxAbgaenge(d), daten: projekt.datenverbindungen, pa: projekt.potentialausgleich }
     for (const plan of zeichnePlaene(analyse, opt, plaene.length + 1, v)) plaene.push({ m, plan })
   }
-  return plaene.map(({ m, plan }, i) => erzeugeBlatt(plan, projekt, m, v, i + 1, plaene.length, d.farbig))
+  return plaene.map(({ m, plan }, i) => erzeugeBlatt(plan, projekt, m, v, i + 1, plaene.length, d.farbig, d.logo))
 }
 
 export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
@@ -72,11 +75,12 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
   const [anordnung, setAnordnung] = useState<Anordnung>(() => lese('molecad.anordnung', 'hager'))
   const [tabelle, setTabelle] = useState<boolean>(() => lese('molecad.tabelle', true))
   const [abgaenge, setAbgaenge] = useState<number | 'auto'>(() => { const v = lese<unknown>('molecad.abgaenge', 'auto'); return typeof v === 'number' && v >= 0 ? v : 'auto' })
-  const d: DarstellungsOptionen = { vorlage, farbig, anordnung, tabelle, abgaenge }
+  const logo = useLogo()
+  const d: DarstellungsOptionen = { vorlage, farbig, anordnung, tabelle, abgaenge, logo }
   const [zoom, setZoom] = useState<number | 'fit'>('fit')
   const [exportiert, setExportiert] = useState(false)
 
-  const blaetter = useMemo(() => erzeugeBlaetter(projekt, analyse, { vorlage, farbig, anordnung, tabelle, abgaenge }, [modus]), [projekt, analyse, vorlage, farbig, anordnung, tabelle, abgaenge, modus])
+  const blaetter = useMemo(() => erzeugeBlaetter(projekt, analyse, { vorlage, farbig, anordnung, tabelle, abgaenge, logo }, [modus]), [projekt, analyse, vorlage, farbig, anordnung, tabelle, abgaenge, logo, modus])
   const [blattWahl, setBlattWahl] = useState(0)
   const blattNr = Math.min(blattWahl, blaetter.length - 1)
   const blatt = blaetter[blattNr]
