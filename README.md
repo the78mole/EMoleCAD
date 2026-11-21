@@ -144,9 +144,10 @@ rechts neben ihrem Teilbaum. Verbindungen innerhalb des ungezählten Bereichs un
 ### Mehrere Zähler (z. B. § 14a Modul 2)
 
 Zweigt vor dem Hauptzähler ein weiterer Zählerstrang ab (etwa ein eigener Zähler für steuerbare Verbraucher), kommt dieser
-auf ein eigenes Blatt. Auf Blatt 1 endet der Abgang in einem Verweispfeil mit der Blattangabe des Ziels (`S.2-A3`,
-darunter `-FC10`), Blatt 2 beginnt mit `von -WD1 S.1-D1`. Datenverbindungen und Potentialausgleich zwischen den Blättern
-werden als Stich mit Verweis gezeichnet (`LMN: -KE1  S.1-C1`). Der ungezählte Bereich mit SPD, SMGW und Steuerbox bleibt dabei auf Blatt 1 beisammen.
+auf ein eigenes Blatt. Auf Blatt 1 endet der Abgang in einem Verweispfeil mit der Blattangabe der Gegenstelle, also
+des Zuführungspfeils auf Blatt 2 (z. B. `S.2-D1`, daneben `-FC10`). Blatt 2 beginnt mit `von -WD1 S.1-C3`, dem Verweis
+zurück auf den Abgangspfeil. Datenverbindungen und Potentialausgleich zwischen den Blättern
+werden als Stich mit Verweis gezeichnet (`LMN: -KE1  S.1-B2`, das Planquadrat des Stichs auf Blatt 1). Der ungezählte Bereich mit SPD, SMGW und Steuerbox bleibt dabei auf Blatt 1 beisammen.
 
 ### Folgeblätter
 
@@ -154,7 +155,8 @@ Stehen auf einem Blatt mehr Stromkreise als eingestellt (Auswahl „Stromkreise/
 10 bei A4, unbegrenzt ohne Rahmen), geht der Plan auf einem Folgeblatt weiter. Umgebrochen wird an ganzen Teilbäumen,
 üblicherweise einem FI mit seinen Stromkreisen; passt ein Teilbaum allein nicht auf ein Blatt, wird innerhalb davon
 umgebrochen (z. B. zwischen den LS eines großen FI). Auf dem abgebenden Blatt endet der Abgang in einem Verweispfeil
-(`S.2-A2`, daneben `-FB21 ... -FB57`), das Folgeblatt beginnt mit `von -QB1 S.1-A1`. Einpoliger und allpoliger Plan
+(z. B. `S.2-C1`, daneben `-FB21 ... -FB57`) auf den Zuführungspfeil des Folgeblatts. Das Folgeblatt beginnt mit
+`von -QB1 S.1-D8`, dem Verweis zurück auf den Abgangspfeil. Einpoliger und allpoliger Plan
 werden gleich aufgeteilt.
 
 Querverweise nennen Seite und Planquadrat der Gegenstelle: `S.3-B1` heißt Blatt 3, Zeile B, Spalte 1 der Randeinteilung

@@ -194,7 +194,7 @@ export function zeichnePlaene(a: Analyse, o: PlanOptionen, startNr = 1, vorlage?
       // Gegenstelle auf dem Zielblatt; fehlt sie, das Gerät selbst
       const z = p.verweise![Number(k)]
       const ziel = nachNr.get(z.blatt)
-      const pos = ziel?.orte?.get(z.anker) ?? ziel?.orte?.get(z.id)
+      const pos = ziel?.anker?.get(z.anker) ?? ziel?.orte?.get(z.id)
       const pq = pos && vorlage ? planquadrat(ziel!, o.modus, vorlage, pos.x, pos.y) : undefined
       return `S.${z.blatt}${pq ? '-' + pq : ''}`
     })

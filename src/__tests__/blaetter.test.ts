@@ -175,7 +175,7 @@ describe('Querverweise mit Planquadrat', () => {
         // Planquadrat der Gegenstelle unabhängig nachrechnen
         const z = s.verweise![i]
         const ziel = b[z.blatt - 1]
-        const pos = ziel.orte!.get(z.anker)!
+        const pos = ziel.anker!.get(z.anker)!
         expect(pos, `${modus} ${z.anker}`).toBeDefined()
         return `S.${z.blatt}-${planquadrat(ziel, modus, a3, pos.x, pos.y)}`
       }
@@ -183,6 +183,11 @@ describe('Querverweise mit Planquadrat', () => {
       expect(b[0].verweise!.map((z) => z.anker)).toEqual(['#zu', '#zu', '#pa:0'])
       expect(b[1].verweise!.map((z) => z.anker)).toEqual(['#ab:2'])
       expect(b[2].verweise!.map((z) => z.anker)).toEqual(['#ab:3', '#pa:0'])
+      // Zielblätter unabhängig festgelegt: Folgeblätter 2 und 3, EV20 auf Blatt 3, Rückverweise auf Blatt 1
+      const seiten = (s: Plan) => [...s.inhalt.matchAll(/S\.(\d+)-[A-Z]\d+</g)].map((m) => Number(m[1]))
+      expect(seiten(b[0])).toEqual([2, 3, 3])
+      expect(seiten(b[1])).toEqual([1])
+      expect(seiten(b[2])).toEqual([1, 1])
       const texte = (s: Plan) => [...s.inhalt.matchAll(/(S\.\d+-[A-Z]\d+)</g)].map((m) => m[1])
       b.forEach((s) => expect(texte(s), modus).toEqual(s.verweise!.map((_, i) => ref(s, i))))
       // Zuführungspfeil des Folgeblatts liegt unten links (Spalte 1), nicht beim FI oben
@@ -202,7 +207,7 @@ describe('Querverweise mit Planquadrat', () => {
       const d1 = b1.verweise!.find((z) => z.anker.startsWith('#daten'))!
       const d2 = b2.verweise!.find((z) => z.anker.startsWith('#daten'))!
       expect(d1.anker).toBe(d2.anker)
-      expect(b1.orte!.has(d1.anker) && b2.orte!.has(d2.anker)).toBe(true)
+      expect(b1.anker!.has(d1.anker) && b2.anker!.has(d2.anker)).toBe(true)
     }
   })
   it('ohne zeichnePlaene steht nur die Seite, keine Platzhalter', () => {

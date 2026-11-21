@@ -45,6 +45,8 @@ export interface Plan {
   hoehe: number
   /** Lage der auf diesem Blatt gezeichneten Komponenten (Planmaß), Ziel für Querverweise */
   orte?: Map<string, { x: number; y: number }>
+  /** Lage der Gegenstellen von Querverweisen (Pfeile, Stiche) auf diesem Blatt, nach Ankername */
+  anker?: Map<string, { x: number; y: number }>
   /** Ziele der Querverweise; im Inhalt steht dafür ein Platzhalter (siehe VERWEIS_MUSTER) */
   verweise?: VerweisZiel[]
 }
@@ -72,6 +74,8 @@ const ANKER = {
 class Verweise {
   ziele: VerweisZiel[] = []
   orte = new Map<string, { x: number; y: number }>()
+  /** Getrennt von `orte`, damit eine Komponenten-ID keinen Anker überschreibt */
+  anker_ = new Map<string, { x: number; y: number }>()
   /** Platzhalter für die Blattangabe der Gegenstelle `anker` auf Blatt `blatt` */
   ziel(blatt: number, anker: string, id: string) {
     this.ziele.push({ blatt, anker, id })
@@ -79,7 +83,7 @@ class Verweise {
   }
   /** Lage einer Gegenstelle auf diesem Blatt */
   anker(name: string, x: number, y: number) {
-    this.orte.set(name, { x, y })
+    this.anker_.set(name, { x, y })
   }
   /** Platzhalter durch „S.<Blatt>“ ersetzen, außer zeichnePlaene löst sie selbst auf */
   fertig(inhalt: string, o: PlanOptionen) {
@@ -151,7 +155,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   if (!alle.length && a.potential.length) {
     // nur Potentialausgleichsschienen vorhanden
     const pa = potentialausgleich(svg, a, new Map(), o, allp, () => 0, { x: 10, y: 20 }, vw)
-    return { inhalt: vw.fertig(svg.toString(), o), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4, orte: vw.orte, verweise: vw.ziele }
+    return { inhalt: vw.fertig(svg.toString(), o), breite: Math.max(120, pa.rechts + 4), hoehe: pa.unten + 4, orte: vw.orte, anker: vw.anker_, verweise: vw.ziele }
   }
   if (!alle.length) {
     svg.text(10, 20, 'Keine Komponenten vorhanden', { groesse: 4, farbe: '#888' })
@@ -450,7 +454,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined && !fremd(l.n.k.id)).sort((p, q) => p.slotX0! - q.slotX0!)
     if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, Math.max(yNetz + 12, daten.unten + 3), trennX) + 4
   }
-  return { inhalt: vw.fertig(svg.toString(), o), breite, hoehe, orte: vw.orte, verweise: vw.ziele }
+  return { inhalt: vw.fertig(svg.toString(), o), breite, hoehe, orte: vw.orte, anker: vw.anker_, verweise: vw.ziele }
 }
 
 /** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
@@ -509,7 +513,8 @@ function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: 
   svg.pfad(`M ${l.x} ${yNetz - 2.5} L ${l.x - 1} ${yNetz - 0.5} L ${l.x + 1} ${yNetz - 0.5} Z`, { fuellung: '#000', breite: 0.2 })
   // Rückverweis auf den Abgangspfeil des speisenden Blatts
   svg.text(sx - 3, yNetz + 3.5, `von ${z.bmk}  ${vw.ziel(z.blatt, ANKER.ab(nr), z.id)}`, { groesse: 2.2, fett: true })
-  vw.anker(ANKER.zu, l.x, yNetz)
+  // Anker in der Mitte des Pfeils (Spitze bei yNetz - 2.5), damit das Planquadrat den Pfeil trifft
+  vw.anker(ANKER.zu, l.x, yNetz - 1.5)
   svg.text(sx - 3, yNetz + 6.5, z.leiter, { groesse: 2 })
 }
 
