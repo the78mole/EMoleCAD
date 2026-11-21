@@ -5,7 +5,7 @@ import { analysiere } from '../model/analyse'
 import { autoLayout } from '../model/ops'
 import { blattTeilung, zeichnePlaene } from '../schematic/blaetter'
 import { planquadrat, VORLAGEN } from '../schematic/blatt'
-import { zeichnePlan } from '../schematic/render'
+import { zeichnePlan, type Plan } from '../schematic/render'
 import { modul2, verteilung } from './fixtures'
 
 describe('Blattaufteilung', () => {
@@ -165,22 +165,44 @@ describe('Folgeblätter – Hilfsleitungen', () => {
 
 describe('Querverweise mit Planquadrat', () => {
   const a3 = VORLAGEN.find((v) => v.id === 'a3')!
-  it('Blattangabe enthält das Planquadrat des Ziels auf dessen Blatt', () => {
+  it('Verweis zeigt auf das Planquadrat der Gegenstelle, nicht auf das Gerät', () => {
     const p = verteilung([4, 4, 4, 4, 4])
-    // Ziele: -FB3 (Blatt 2) und -FB5 (Blatt 3); nachgerechnet aus Lage, Maßstab und Randeinteilung,
-    // allpolig liegt -FB5 wegen des größeren Maßstabs knapp in Zeile B
-    const erwartet = { einpolig: ['S.2-A2', 'S.3-A1'], allpolig: ['S.2-A2', 'S.3-B1'] }
+    p.komponenten.push({ id: 'PAS1', typ: 'pas' })
+    p.potentialausgleich = [{ von: 'PAS1', nach: 'EV20', querschnitt: '6' }]
     for (const modus of ['einpolig', 'allpolig'] as const) {
-      const b = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, maxAbgaenge: 10 }, 1, a3)
-      expect(b[0].verweise).toEqual(['FB3', 'FB5'])
-      const refs = [...b[0].inhalt.matchAll(/>(S\.\d+-[A-Z]\d+)</g)].map((m) => m[1])
-      expect(refs, modus).toEqual(erwartet[modus])
+      const b = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, pa: p.potentialausgleich, maxAbgaenge: 10 }, 1, a3)
+      const ref = (s: Plan, i: number) => {
+        // Planquadrat der Gegenstelle unabhängig nachrechnen
+        const z = s.verweise![i]
+        const ziel = b[z.blatt - 1]
+        const pos = ziel.orte!.get(z.anker)!
+        expect(pos, `${modus} ${z.anker}`).toBeDefined()
+        return `S.${z.blatt}-${planquadrat(ziel, modus, a3, pos.x, pos.y)}`
+      }
+      // Abgangspfeile auf Blatt 1 zeigen auf die Zuführung des Folgeblatts, diese zurück auf den Pfeil
+      expect(b[0].verweise!.map((z) => z.anker)).toEqual(['#zu', '#zu', '#pa:0'])
+      expect(b[1].verweise!.map((z) => z.anker)).toEqual(['#ab:2'])
+      expect(b[2].verweise!.map((z) => z.anker)).toEqual(['#ab:3', '#pa:0'])
+      const texte = (s: Plan) => [...s.inhalt.matchAll(/(S\.\d+-[A-Z]\d+)</g)].map((m) => m[1])
+      b.forEach((s) => expect(texte(s), modus).toEqual(s.verweise!.map((_, i) => ref(s, i))))
+      // Zuführungspfeil des Folgeblatts liegt unten links (Spalte 1), nicht beim FI oben
+      expect(texte(b[0])[0]).toMatch(/^S\.2-[C-D]1$/)
+      expect(texte(b[1])[0]).toMatch(/^S\.1-C\d$/)
       for (const s of b) {
         // keine Platzhalter und keine Zeichen außerhalb Latin-1 (PDF-Export)
         expect(s.inhalt).not.toContain('\u0001')
         expect([...s.inhalt].every((c) => c.charCodeAt(0) <= 0xff)).toBe(true)
       }
-      expect(b[1].inhalt).toMatch(/von -QB1 {2}S\.1-[A-Z]\d/)
+    }
+  })
+  it('Datenverbindung über Blattgrenzen: beide Stiche verweisen aufeinander', () => {
+    const p = modul2()
+    for (const modus of ['einpolig', 'allpolig'] as const) {
+      const [b1, b2] = zeichnePlaene(analysiere(p), { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen }, 1, a3)
+      const d1 = b1.verweise!.find((z) => z.anker.startsWith('#daten'))!
+      const d2 = b2.verweise!.find((z) => z.anker.startsWith('#daten'))!
+      expect(d1.anker).toBe(d2.anker)
+      expect(b1.orte!.has(d1.anker) && b2.orte!.has(d2.anker)).toBe(true)
     }
   })
   it('ohne zeichnePlaene steht nur die Seite, keine Platzhalter', () => {

@@ -46,7 +46,7 @@ export interface Plan {
   /** Lage der auf diesem Blatt gezeichneten Komponenten (Planmaß), Ziel für Querverweise */
   orte?: Map<string, { x: number; y: number }>
   /** Ziele der Querverweise; im Inhalt steht dafür ein Platzhalter (siehe VERWEIS_MUSTER) */
-  verweise?: string[]
+  verweise?: VerweisZiel[]
 }
 
 /** Platzhalter für die Blattangabe eines Querverweises („S.2-B3“); wird ersetzt, sobald alle Blätter
@@ -54,22 +54,37 @@ export interface Plan {
 // oxlint-disable-next-line no-control-regex -- Platzhalter bzw. Latin-1-Bereich bewusst
 export const VERWEIS_MUSTER = /\u0001(\d+)\u0001/g
 
-/** Sammelt Querverweise und die Lage der Komponenten eines Blatts */
+/** Ziel eines Querverweises: die Gegenstelle (`anker`) auf Blatt `blatt`, ersatzweise die Komponente `id` */
+export interface VerweisZiel { blatt: number; anker: string; id: string }
+
+/** Ankernamen der Gegenstellen. Ein Querverweis zeigt immer auf die Stelle des Zielblatts, an der die
+ *  Leitung weitergeht (Pfeil oder Stich mit dem Rückverweis), nicht auf das Gerät selbst. */
+const ANKER = {
+  /** Abgangspfeil zum Blatt `nach` */
+  ab: (nach: number) => `#ab:${nach}`,
+  /** Zuführung am Fuß der Einspeisekette */
+  zu: '#zu',
+  daten: (i: number) => `#daten:${i}`,
+  pa: (i: number) => `#pa:${i}`,
+}
+
+/** Sammelt Querverweise und die Lage der Komponenten und Gegenstellen eines Blatts */
 class Verweise {
-  ziele: string[] = []
+  ziele: VerweisZiel[] = []
   orte = new Map<string, { x: number; y: number }>()
-  /** Platzhalter für die Blattangabe der Komponente `id` */
-  ziel(id: string) {
-    this.ziele.push(id)
+  /** Platzhalter für die Blattangabe der Gegenstelle `anker` auf Blatt `blatt` */
+  ziel(blatt: number, anker: string, id: string) {
+    this.ziele.push({ blatt, anker, id })
     return `\u0001${this.ziele.length - 1}\u0001`
+  }
+  /** Lage einer Gegenstelle auf diesem Blatt */
+  anker(name: string, x: number, y: number) {
+    this.orte.set(name, { x, y })
   }
   /** Platzhalter durch „S.<Blatt>“ ersetzen, außer zeichnePlaene löst sie selbst auf */
   fertig(inhalt: string, o: PlanOptionen) {
     if (o.verweisPlatzhalter) return inhalt
-    return inhalt.replace(VERWEIS_MUSTER, (_, k: string) => {
-      const z = o.blatt?.ort.get(this.ziele[Number(k)])
-      return z ? `S.${z.blatt}` : ''
-    })
+    return inhalt.replace(VERWEIS_MUSTER, (_, k: string) => `S.${this.ziele[Number(k)].blatt}`)
   }
 }
 
@@ -389,19 +404,21 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       // Fortsetzung der Abgänge eines Geräts von einem anderen Blatt: nur die Leitung, kein Symbol
       for (const le of allp ? l.aus : (['L1'] as LeiterName[])) svg.linie(cx(l, le, l.aus), l.symTop, cx(l, le, l.aus), l.symBot, { farbe: farbe(le) })
       if (!eltern && l.kette && bezug.zufuehrung) {
-        zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung, vw)
+        zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung, vw, bezug.nr)
         if (!allp) leiterZahl(svg, { ...l, aufwaerts: true }, yNetz, !!o.farbig)
       }
       continue
     }
     if (fremd(n.k.id)) {
       if (!allp && eltern) leiterZahl(svg, l, eltern.busY.L1, !!o.farbig)
-      verweisPfeil(svg, l, allp, cx, bezug!.verweis?.get(n.k.id) ?? n.bmk, vw.ziel(n.k.id))
+      const nach = bezug!.ort.get(n.k.id)!.blatt
+      const spitze = verweisPfeil(svg, l, allp, cx, bezug!.verweis?.get(n.k.id) ?? n.bmk, vw.ziel(nach, ANKER.zu, n.k.id))
+      vw.anker(ANKER.ab(nach), l.x, spitze)
       continue
     }
     if (!eltern && n.def.wurzel) einspeisung(svg, l, cx, o, allp, farbe, l.kette ? yNetz : undefined)
     else if (!eltern && l.kette && bezug?.zufuehrung) {
-      zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung, vw)
+      zufuehrung(svg, l, allp, cx, yNetz, bezug.zufuehrung, vw, bezug.nr)
       if (!allp) leiterZahl(svg, { ...l, aufwaerts: true }, yNetz, !!o.farbig)
     }
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
@@ -467,7 +484,7 @@ const MITTE_SENKRECHT = 0.36
 
 /** Abgang auf ein anderes Blatt: Leitung endet in einem Pfeil; dahinter in Pfeilrichtung die
  *  Blattangabe des Ziels („S.2-B3“, fett, auf der Leitungsachse) und rechts daneben die BMK */
-function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, bmk: string, ziel: string) {
+function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, bmk: string, ziel: string): number {
   const xs = allp ? l.n.leiter.map((le) => cx(l, le)) : [l.x]
   const y = l.aufwaerts ? l.symBot : l.symTop
   const richtung = l.aufwaerts ? -1 : 1
@@ -481,15 +498,18 @@ function verweisPfeil(svg: Svg, l: Lage, allp: boolean, cx: Cx, bmk: string, zie
   const gr = 2.2
   svg.text(l.x + gr * MITTE_SENKRECHT, ty, ziel, { groesse: gr, fett: true, drehung: -90, anker })
   svg.text(l.x + gr * MITTE_SENKRECHT + 2.6, ty, bmk, { groesse: 1.9, drehung: -90, anker })
+  return spitze
 }
 
 /** Zuführung von einem anderen Blatt am Fuß der Einspeisekette */
-function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: { id: string; bmk: string; blatt: number; leiter: string }, vw: Verweise) {
+function zufuehrung(svg: Svg, l: Lage, allp: boolean, cx: Cx, yNetz: number, z: { id: string; bmk: string; blatt: number; leiter: string }, vw: Verweise, nr: number) {
   const xs = allp ? l.n.leiter.map((le) => cx(l, le)) : [l.x]
   if (xs.length > 1) svg.linie(Math.min(...xs), yNetz, Math.max(...xs), yNetz, { breite: 0.35 })
   const sx = Math.min(...xs)
   svg.pfad(`M ${l.x} ${yNetz - 2.5} L ${l.x - 1} ${yNetz - 0.5} L ${l.x + 1} ${yNetz - 0.5} Z`, { fuellung: '#000', breite: 0.2 })
-  svg.text(sx - 3, yNetz + 3.5, `von ${z.bmk}  ${vw.ziel(z.id)}`, { groesse: 2.2, fett: true })
+  // Rückverweis auf den Abgangspfeil des speisenden Blatts
+  svg.text(sx - 3, yNetz + 3.5, `von ${z.bmk}  ${vw.ziel(z.blatt, ANKER.ab(nr), z.id)}`, { groesse: 2.2, fett: true })
+  vw.anker(ANKER.zu, l.x, yNetz)
   svg.text(sx - 3, yNetz + 6.5, z.leiter, { groesse: 2 })
 }
 
@@ -613,7 +633,10 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
       svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
       const text = `${d.art ? d.art + ': ' : ''}${ziel.bmk}  `
-      const ref = vw.ziel(id)
+      // Gegenstelle ist der Stich derselben Verbindung auf dem anderen Blatt
+      const nrD = (o.daten ?? []).indexOf(d)
+      const ref = vw.ziel(ziel.blatt, ANKER.daten(nrD), id)
+      vw.anker(ANKER.daten(nrD), ende[0], ende[1])
       svg.text(ende[0] + 0.8, ende[1] + 0.6, text + ref, { groesse: 1.7, farbe })
       // Blattangabe „S.12-E8“ hat höchstens 7 Zeichen
       rechts = Math.max(rechts, ende[0] + 0.8 + (text.length + 7) * 0.9)
@@ -777,9 +800,9 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const verb = liste.filter((d) => d.von === id || d.nach === id)
     const partner = verb.map((d) => ({ d, l: nachId.get(d.von === id ? d.nach : d.von) })).filter((v): v is { d: PaVerbindung; l: Lage } => !!v.l)
     // Partner auf anderen Blättern
-    const fern = verb.map((d) => d.von === id ? d.nach : d.von)
-      .filter((pid) => !nachId.has(pid) && o.blatt?.ort.has(pid) && o.blatt.ort.get(pid)!.blatt !== o.blatt.nr)
-      .map((pid) => ({ id: pid, bmk: o.blatt!.ort.get(pid)!.bmk }))
+    const fern = verb.map((d) => ({ d, pid: d.von === id ? d.nach : d.von }))
+      .filter(({ pid }) => !nachId.has(pid) && o.blatt?.ort.has(pid) && o.blatt.ort.get(pid)!.blatt !== o.blatt.nr)
+      .map(({ d, pid }) => ({ d, id: pid, ...o.blatt!.ort.get(pid)! }))
     const ans = partner.map((v) => ({ ...v, a: anschluss(v.l) }))
     // Schienenhöhe: unter allen Anschlüssen, Geräte der Einspeisekette möglichst waagerecht anfahren
     const kette = ans.filter((v) => v.l.kette).map((v) => v.a.p[1])
@@ -799,7 +822,9 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
       const fx = fernX[i]
       svg.linie(fx, y, fx, y + 5, stil)
       svg.pfad(`M ${fx} ${y + 7} L ${fx - 0.8} ${y + 5} L ${fx + 0.8} ${y + 5} Z`, { farbe: fa, fuellung: fa, breite: 0.1 })
-      svg.text(fx + 1.6 * MITTE_SENKRECHT, y + 8, `${z.bmk}  ${vw.ziel(z.id)}`, { groesse: 1.6, farbe: fa, drehung: -90, anker: 'end' })
+      const nrP = (o.pa ?? []).indexOf(z.d)
+      svg.text(fx + 1.6 * MITTE_SENKRECHT, y + 8, `${z.bmk}  ${vw.ziel(z.blatt, ANKER.pa(nrP), z.id)}`, { groesse: 1.6, farbe: fa, drehung: -90, anker: 'end' })
+      vw.anker(ANKER.pa(nrP), fx, y + 7)
     })
     for (const v of senk) leitung(v.a, y, querschnitt(v.d))
     for (const v of direkt) {
@@ -855,7 +880,9 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const y = q.p[1] + 6
     leitung(q, y, querschnitt(d))
     svg.pfad(`M ${q.x} ${y + 2} L ${q.x - 0.8} ${y} L ${q.x + 0.8} ${y} Z`, { farbe: fa, fuellung: fa, breite: 0.1 })
-    svg.text(q.x + 1.2, y + 2, `${z.bmk}  ${vw.ziel(fern)}`, { groesse: 1.6, farbe: fa })
+    const nrP = (o.pa ?? []).indexOf(d)
+    svg.text(q.x + 1.2, y + 2, `${z.bmk}  ${vw.ziel(z.blatt, ANKER.pa(nrP), fern)}`, { groesse: 1.6, farbe: fa })
+    vw.anker(ANKER.pa(nrP), q.x, y + 2)
     unten = Math.max(unten, y + 3)
     rechts = Math.max(rechts, q.x + 16)
   }

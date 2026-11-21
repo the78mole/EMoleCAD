@@ -182,21 +182,19 @@ export function blattTeilung(a: Analyse, o: Pick<PlanOptionen, 'anordnung' | 'ma
 
 /**
  * Zeichnet alle Blätter eines Plans (Zählerstränge und Folgeblätter). Querverweise erhalten die
- * Blattangabe „S.<Blatt>-<Planquadrat>“ des Ziels (z.B. „S.3-B1“); ohne Vorlage bzw. bei einer
- * Vorlage ohne Rahmen nur „S.<Blatt>“.
+ * Blattangabe „S.<Blatt>-<Planquadrat>“ der Gegenstelle auf dem Zielblatt (Pfeil bzw. Stich, an dem
+ * die Leitung weitergeht), z.B. „S.3-B1“. Ohne Vorlage bzw. bei einer Vorlage ohne Rahmen nur „S.<Blatt>“.
  */
 export function zeichnePlaene(a: Analyse, o: PlanOptionen, startNr = 1, vorlage?: Vorlage): Plan[] {
   const teile = blattTeilung(a, o, startNr)
   const plaene = teile.map((b) => zeichnePlan(b.sicht, { ...o, blatt: b.bezug, verweisPlatzhalter: true }))
   const nachNr = new Map(teile.map((b, i) => [b.bezug?.nr ?? startNr + i, plaene[i]]))
-  return plaene.map((p, i) => {
-    const ort = teile[i].bezug?.ort
+  return plaene.map((p) => {
     const inhalt = p.inhalt.replace(VERWEIS_MUSTER, (_, k: string) => {
-      const id = p.verweise![Number(k)]
-      const z = ort?.get(id)
-      if (!z) return ''
+      // Gegenstelle auf dem Zielblatt; fehlt sie, das Gerät selbst
+      const z = p.verweise![Number(k)]
       const ziel = nachNr.get(z.blatt)
-      const pos = ziel?.orte?.get(id)
+      const pos = ziel?.orte?.get(z.anker) ?? ziel?.orte?.get(z.id)
       const pq = pos && vorlage ? planquadrat(ziel!, o.modus, vorlage, pos.x, pos.y) : undefined
       return `S.${z.blatt}${pq ? '-' + pq : ''}`
     })

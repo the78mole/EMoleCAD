@@ -157,8 +157,11 @@ umgebrochen (z. B. zwischen den LS eines großen FI). Auf dem abgebenden Blatt e
 (`S.2-A2`, daneben `-FB21 ... -FB57`), das Folgeblatt beginnt mit `von -QB1 S.1-A1`. Einpoliger und allpoliger Plan
 werden gleich aufgeteilt.
 
-Querverweise nennen Seite und Planquadrat des Ziels: `S.3-B1` heißt Blatt 3, Zeile B, Spalte 1 der Randeinteilung
-(Spalten 1, 2, … oben und unten, Zeilen A, B, … links und rechts). Bei der Vorlage ohne Rahmen steht nur die Seite (`S.3`).
+Querverweise nennen Seite und Planquadrat der Gegenstelle: `S.3-B1` heißt Blatt 3, Zeile B, Spalte 1 der Randeinteilung
+(Spalten 1, 2, … oben und unten, Zeilen A, B, … links und rechts). Gegenstelle ist die Stelle, an der die Leitung auf dem
+anderen Blatt weitergeht: Der Abgangspfeil verweist auf den Zuführungspfeil des Folgeblatts, dieser zurück auf den
+Abgangspfeil; Stiche von Daten- und Potentialausgleichsleitungen verweisen auf den Stich derselben Verbindung. Bei der
+Vorlage ohne Rahmen steht nur die Seite (`S.3`).
 
 ```yaml
   - { id: FC10, typ: sls,     quelle: WD1, params: { nennstrom: 35 } }
