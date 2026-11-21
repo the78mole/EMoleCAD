@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { LOGO_TYPEN, logoAusDatei, logoSetzen, useLogo } from '../einstellungen/logo'
+import { kabelWertVergessen, useKabelWerte } from '../einstellungen/kabelwerte'
 
 interface Props {
   onSchliessen(): void
@@ -8,6 +9,8 @@ interface Props {
 /** App-Einstellungen; gelten für alle Projekte und liegen nur in diesem Browser. */
 export function Einstellungen({ onSchliessen }: Props) {
   const logo = useLogo()
+  const kabelWerte = useKabelWerte()
+  const [kabelFehler, setKabelFehler] = useState<string>()
   const [fehler, setFehler] = useState<string>()
   const [laedt, setLaedt] = useState(false)
   const eingabe = useRef<HTMLInputElement>(null)
@@ -70,6 +73,25 @@ export function Einstellungen({ onSchliessen }: Props) {
             {laedt ? <button onClick={abbrechen}>Abbrechen</button> : logo && <button onClick={() => void entfernen()}>Logo entfernen</button>}
           </div>
           {fehler && <div className="dialog-fehler">{fehler}</div>}
+        </section>
+        <section className="dialog-abschnitt">
+          <h3>Eigene Kabeltypen und Querschnitte</h3>
+          <p className="dialog-hinweis">
+            Werte, die unter „Zuleitung“ als eigener Typ oder Querschnitt eingegeben wurden. Sie stehen in allen Projekten zur Auswahl
+            und liegen nur in diesem Browser. Entfernen ändert keine bestehenden Projekte.
+          </p>
+          {(['typ', 'querschnitt'] as const).map((feld) => (
+            <div key={feld} className="kabelwerte">
+              <div className="kabelwerte-titel">{feld === 'typ' ? 'Kabeltypen' : 'Querschnitte'}</div>
+              {kabelWerte[feld].length === 0 ? <span className="dialog-hinweis">keine</span> : kabelWerte[feld].map((w) => (
+                <span key={w} className="kabelwert">
+                  {w}
+                  <button className="icon-btn" title={`„${w}“ entfernen`} aria-label={`${w} entfernen`} onClick={() => { setKabelFehler(undefined); kabelWertVergessen(feld, w).catch((e: Error) => setKabelFehler(e.message)) }}>×</button>
+                </span>
+              ))}
+            </div>
+          ))}
+          {kabelFehler && <div className="dialog-fehler">{kabelFehler}</div>}
         </section>
       </div>
     </div>
