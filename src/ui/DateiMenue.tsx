@@ -7,7 +7,7 @@ interface Props {
   zuletzt: DateiRef[]
   status?: { text: string; fehler?: boolean }
   onNeu(): void
-  onBeispiel(): void
+  onBeispiel(welches?: 'wandler'): void
   onOeffnen(ref?: DateiRef): void
   onSpeichern(): void
   onSpeichernUnter(): void
@@ -52,7 +52,8 @@ export function DateiMenue(p: Props) {
             <button onClick={tu(p.onSpeichern)}>{p.datei && zurueck ? 'Speichern' : 'Speichern…'}<kbd>{kuerzel('S')}</kbd></button>
             <button onClick={tu(p.onSpeichernUnter)}>Speichern unter…<kbd>{kuerzel('⇧S')}</kbd></button>
             <hr />
-            <button onClick={tu(p.onBeispiel)}>Beispiel laden</button>
+            <button onClick={tu(() => p.onBeispiel())}>Beispiel laden</button>
+            <button onClick={tu(() => p.onBeispiel('wandler'))}>Beispiel PV mit Wandlermessung</button>
             {!zurueck && <div className="menue-hinweis">Hier kann nicht direkt in Dateien geschrieben werden (Firefox/Safari oder eingebettete Vorschau); Speichern lädt die YAML-Datei herunter. Direkt geöffnet in Chrome oder Edge wird in die geöffnete Datei gespeichert.</div>}
           </div>
         )}

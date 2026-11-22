@@ -53,7 +53,21 @@ export interface Datenverbindung {
   von: string
   nach: string
   art?: string
+  /** Leitungsart: Daten-/Steuerleitung (Standard), Wandler-Messleitung (Sekundärkreis eines
+   *  Stromwandlers) oder Analogsignal (z. B. 4...20 mA zur Fernwirktechnik) */
+  typ?: Leitungstyp
+  /** Kabel dieser Verbindung, z. B. "Ölflex Classic 110 7G1,5" (wird an der Leitung angeschrieben) */
+  kabel?: string
+  /** Anschlussklemmen am Gerät `von` bzw. `nach`, z. B. "1/3" oder "out1" (siehe Parameter `anschluesse`) */
+  klemmeVon?: string
+  klemmeNach?: string
 }
+
+/** daten: Daten-/Steuerleitung, wandler: Stromwandler-Sekundärkreis (k/l), spannung: Messspannung
+ *  (Spannungspfad eines Zählers/Messumformers), analog: Analogsignal (z. B. 4...20 mA) */
+export type Leitungstyp = 'daten' | 'wandler' | 'spannung' | 'analog'
+export const LEITUNGSTYPEN: Leitungstyp[] = ['daten', 'wandler', 'spannung', 'analog']
+export const LEITUNGSTYP_NAME: Record<Leitungstyp, string> = { daten: 'Daten/Steuerung', wandler: 'Wandler-Messleitung', spannung: 'Messspannung', analog: 'Analogsignal' }
 
 /** Potentialausgleichsverbindung (z.B. PAS–HAK), getrennt von den Stromleitungen */
 export interface PaVerbindung {

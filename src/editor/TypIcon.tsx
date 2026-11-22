@@ -33,11 +33,23 @@ export function TypIcon({ art, groesse = 18 }: { art: SymbolArt; groesse?: numbe
     case 'pas':
       inhalt = <><rect x="2" y="7" width="16" height="4" {...s} /><line x1="10" y1="11" x2="10" y2="14" {...s} /><line x1="5" y1="14" x2="15" y2="14" {...s} /><line x1="7" y1="16.5" x2="13" y2="16.5" {...s} /><line x1="9" y1="19" x2="11" y2="19" {...s} /></>
       break
+    case 'wandler':
+      inhalt = <><line x1="10" y1="1" x2="10" y2="19" {...s} /><circle cx="10" cy="10" r="4.5" {...s} /><line x1="13" y1="7" x2="17" y2="4" {...s} /></>
+      break
+    case 'schuetz':
+      inhalt = <><line x1="10" y1="1" x2="10" y2="6" {...s} /><line x1="10" y1="14" x2="10" y2="19" {...s} /><line x1="10" y1="14" x2="5" y2="6" {...s} /><path d="M 8.3 4.5 A 1.7 1.7 0 0 0 11.7 4.5" {...s} /><rect x="1" y="8.5" width="3" height="3" {...s} /></>
+      break
+    case 'messumformer':
+      inhalt = <><rect x="2" y="2" width="16" height="16" {...s} /><line x1="2" y1="18" x2="18" y2="2" {...s} /><text x="3.5" y="8" fontSize="5" fill="currentColor">U,I</text><text x="17" y="16" fontSize="5" textAnchor="end" fill="currentColor">mA</text></>
+      break
+    case 'klemmleiste':
+      inhalt = <><rect x="3" y="7" width="14" height="6" {...s} /><circle cx="6.5" cy="10" r="1.3" {...s} /><circle cx="10" cy="10" r="1.3" {...s} /><circle cx="13.5" cy="10" r="1.3" {...s} /></>
+      break
     case 'verteiler':
       inhalt = <><rect x="2" y="3" width="16" height="14" {...s} strokeDasharray="2 1.5" /><text x="10" y="13" fontSize="6.5" textAnchor="middle" fill="currentColor" fontWeight="bold">UV</text></>
       break
     default: {
-      const t = { wallbox: 'EV', waermepumpe: 'WP', steuerbox: 'SB', smgw: 'GW' }[art as string]
+      const t = { wallbox: 'EV', waermepumpe: 'WP', steuerbox: 'SB', smgw: 'GW', fernwirk: 'FW' }[art as string]
       inhalt = <><rect x="2" y="3" width="16" height="14" {...s} />{t ? <text x="10" y="13" fontSize="6.5" textAnchor="middle" fill="currentColor" fontWeight="bold">{t}</text> : <><line x1="6" y1="6" x2="14" y2="14" {...s} /><line x1="6" y1="14" x2="14" y2="6" {...s} /></>}</>
     }
   }

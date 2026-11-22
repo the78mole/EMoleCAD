@@ -1,6 +1,6 @@
 import { analysiere, naechsteId } from './analyse'
 import { kennbuchstaben, standardParams } from './library'
-import type { Komponente, Projekt } from './types'
+import type { Datenverbindung, Komponente, Leitungstyp, Projekt } from './types'
 
 /** Reine Funktionen, die ein neues Projekt zurückgeben (unveränderlich). */
 
@@ -61,6 +61,17 @@ export function standardDatenart(p: Projekt, von: string, nach: string): string 
   if (paar.has('steuerbox')) return 'Steuersignal'
   // Netztrennung für Ersatzstrom, z. B. Fronius Backup Controller vom Hybridwechselrichter gesteuert
   if (paar.has('trennschalter') && paar.has('wechselrichter')) return 'Steuersignal'
+  if (paar.has('fernwirk') && paar.has('messumformer')) return '4...20 mA'
+  if (paar.has('fernwirk') && (paar.has('schuetz') || paar.has('trennschalter'))) return 'Steuersignal'
+  return undefined
+}
+
+/** Leitungsart je nach Gerätepaar: Stromwandler → Wandler-Messleitung, Messumformer → Fernwirk analog */
+export function standardLeitungstyp(p: Projekt, von: string, nach: string): Leitungstyp | undefined {
+  const typ = (id: string) => p.komponenten.find((k) => k.id === id)?.typ
+  const paar = new Set([typ(von), typ(nach)])
+  if (paar.has('stromwandler')) return 'wandler'
+  if (paar.has('fernwirk') && paar.has('messumformer')) return 'analog'
   return undefined
 }
 
@@ -68,7 +79,24 @@ export function datenVerbinden(p: Projekt, von: string, nach: string): Projekt {
   const liste = p.datenverbindungen ?? []
   if (von === nach || liste.some((d) => (d.von === von && d.nach === nach) || (d.von === nach && d.nach === von))) return p
   const art = standardDatenart(p, von, nach)
-  return { ...p, datenverbindungen: [...liste, art ? { von, nach, art } : { von, nach }] }
+  const typ = standardLeitungstyp(p, von, nach)
+  const d: Datenverbindung = { von, nach }
+  if (typ) d.typ = typ
+  if (art) d.art = art
+  return { ...p, datenverbindungen: [...liste, d] }
+}
+
+/** Ändert Felder einer Datenverbindung; leere Werte werden entfernt */
+export function datenSetzen(p: Projekt, von: string, nach: string, felder: Partial<Pick<Datenverbindung, 'typ' | 'kabel' | 'klemmeVon' | 'klemmeNach' | 'art'>>): Projekt {
+  return {
+    ...p,
+    datenverbindungen: (p.datenverbindungen ?? []).map((d) => {
+      if (d.von !== von || d.nach !== nach) return d
+      const n: Datenverbindung = { ...d, ...felder }
+      for (const k of ['typ', 'kabel', 'klemmeVon', 'klemmeNach', 'art'] as const) if (!n[k] || (k === 'typ' && n[k] === 'daten')) delete n[k]
+      return n
+    }),
+  }
 }
 
 export function datenTrennen(p: Projekt, von: string, nach: string): Projekt {
@@ -131,7 +159,7 @@ export function neuNummerieren(p: Projekt): Projekt {
 }
 
 /** Typen der Einspeisekette (HAK → … → Verteilung); im Editor immer ganz links. */
-const KETTE = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung', 'sammelschiene']
+const KETTE = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung', 'sammelschiene', 'stromwandler', 'schuetz']
 
 /**
  * Baum-Layout von links nach rechts: Eltern stehen über ihrem ersten Abgang.
@@ -171,6 +199,8 @@ export function autoLayout(p: Projekt): Record<string, { x: number; y: number }>
   // Potentialausgleichsschienen unter den Baum, links beginnend
   const yPa = (Math.max(-1, ...Object.values(pos).map((v) => v.y / BY)) + 1) * BY
   a.potential.forEach((n, i) => { pos[n.k.id] = { x: i * BX, y: yPa } })
+  // Klemmleisten daneben
+  a.hilfs.forEach((n, i) => { pos[n.k.id] = { x: (a.potential.length + i) * BX, y: yPa } })
   return pos
 }
 

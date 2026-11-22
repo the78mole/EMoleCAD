@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { Analyse } from '../model/analyse'
-import { paramOptionen, typDef } from '../model/library'
+import { anschluesse, paramOptionen, standardParams, typDef } from '../model/library'
 import type { Komponente, ParamWert, Projekt } from '../model/types'
 import { KABEL_STANDARD, kabelOptionen } from '../model/kabel'
 import { kabelWertMerken, useKabelWerte } from '../einstellungen/kabelwerte'
 import { AuswahlFrei } from './AuswahlFrei'
-import { datenArtSetzen, datenTrennen, datenVerbinden, paQuerschnittSetzen, paTrennen, paVerbinden } from '../model/ops'
+import { datenArtSetzen, datenSetzen, datenTrennen, datenVerbinden, paQuerschnittSetzen, paTrennen, paVerbinden } from '../model/ops'
+import { LEITUNGSTYP_NAME, LEITUNGSTYPEN, type Leitungstyp } from '../model/types'
 
 
 interface Props {
@@ -27,6 +28,8 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
   const kabelWerte = useKabelWerte()
   if (!k) return null
   const def = typDef(k.typ)
+  const anschlussListe = anschluesse({ ...standardParams(k.typ), ...(k.params ?? {}) })
+  const anschlussHinweis = anschlussListe.length ? `Anschlüsse: ${anschlussListe.map((a) => `${a.name} (${a.klemmen})`).join(', ')}; mehrere mit Komma` : 'Klemmen am Gerät, mehrere mit Komma'
   const knoten = analyse.knoten.get(id)
   const meldungen = analyse.meldungen.filter((m) => m.id === id)
   const setze = (patch: Partial<Komponente>) => onAendern(id, { ...k, ...patch })
@@ -79,7 +82,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
       <label>Bezeichnung
         <input value={k.name ?? ''} placeholder={def.label} onChange={(e) => setze({ name: e.target.value || undefined })} />
       </label>
-      {!def.wurzel && !def.potential && (
+      {!def.wurzel && !def.potential && !def.hilfs && (
         <label>Quelle (vorgeschaltet)
           <select value={k.quelle ?? ''} onChange={(e) => setze({ quelle: e.target.value || undefined })}>
             <option value="">– nicht angeschlossen –</option>
@@ -87,7 +90,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
           </select>
         </label>
       )}
-      {!def.dc && !def.potential && (
+      {!def.dc && !def.potential && !def.hilfs && (
         <div className="reihe">
           <label>Polzahl
             {def.nSchaltbar ? (
@@ -173,7 +176,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
         <label>Hersteller<input value={k.produkt?.hersteller ?? ''} placeholder="z. B. Hager" onChange={(e) => setzeProdukt('hersteller', e.target.value)} /></label>
         <label>Artikelnummer<input value={k.produkt?.artikel ?? ''} placeholder="z. B. MBN116" onChange={(e) => setzeProdukt('artikel', e.target.value)} /></label>
       </div>
-      {!def.wurzel && !def.potential && (
+      {!def.wurzel && !def.potential && !def.hilfs && (
         <>
           <div className="eig-abschnitt">Zuleitung</div>
           <div className="reihe">
@@ -200,13 +203,31 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
           {(projekt.datenverbindungen ?? []).filter((d) => d.von === id || d.nach === id).map((d) => {
             const anderer = d.von === id ? d.nach : d.von
             return (
-              <div key={`${d.von}-${d.nach}`} className="reihe daten-zeile">
-                <span className="daten-ziel">{d.von === id ? '→' : '←'} {anderer}</span>
-                <input value={d.art ?? ''} placeholder="Art (LMN, CLS…)" onChange={(e) => onProjekt(datenArtSetzen(projekt, d.von, d.nach, e.target.value))} />
-                <button className="icon-btn" title="Datenverbindung entfernen" onClick={() => onProjekt(datenTrennen(projekt, d.von, d.nach))}>×</button>
+              <div key={`${d.von}-${d.nach}`} className="daten-block">
+                <div className="reihe daten-zeile">
+                  <span className="daten-ziel">{d.von === id ? '→' : '←'} {anderer}</span>
+                  <select value={d.typ ?? 'daten'} title="Leitungsart" onChange={(e) => onProjekt(datenSetzen(projekt, d.von, d.nach, { typ: e.target.value as Leitungstyp }))}>
+                    {LEITUNGSTYPEN.map((t) => <option key={t} value={t}>{LEITUNGSTYP_NAME[t]}</option>)}
+                  </select>
+                  <button className="icon-btn" title="Datenverbindung entfernen" onClick={() => onProjekt(datenTrennen(projekt, d.von, d.nach))}>×</button>
+                </div>
+                <div className="reihe daten-zeile">
+                  <input value={d.art ?? ''} placeholder="Art (LMN, k/l, 4...20 mA…)" onChange={(e) => onProjekt(datenArtSetzen(projekt, d.von, d.nach, e.target.value))} />
+                  {!def.hilfs && (
+                    <input
+                      value={(d.von === id ? d.klemmeVon : d.klemmeNach) ?? ''}
+                      placeholder="Anschluss hier (z. B. out1)"
+                      title={anschlussHinweis}
+                      list={`anschluesse-${id}`}
+                      onChange={(e) => onProjekt(datenSetzen(projekt, d.von, d.nach, d.von === id ? { klemmeVon: e.target.value } : { klemmeNach: e.target.value }))}
+                    />
+                  )}
+                </div>
+                <input value={d.kabel ?? ''} placeholder="Kabel (z. B. Ölflex Classic 110 7G1,5)" onChange={(e) => onProjekt(datenSetzen(projekt, d.von, d.nach, { kabel: e.target.value }))} />
               </div>
             )
           })}
+          <datalist id={`anschluesse-${id}`}>{anschlussListe.map((a) => <option key={a.name} value={a.name}>{a.klemmen}</option>)}</datalist>
           <label>Verbinden mit
             <select value="" onChange={(e) => e.target.value && onProjekt(datenVerbinden(projekt, id, e.target.value))}>
               <option value="">– Gerät wählen –</option>
@@ -228,6 +249,7 @@ export function Eigenschaften({ projekt, analyse, id, onAendern, onProjekt, onLo
               </div>
             )
           })}
+          <datalist id={`anschluesse-${id}`}>{anschlussListe.map((a) => <option key={a.name} value={a.name}>{a.klemmen}</option>)}</datalist>
           <label>Verbinden mit
             <select value="" onChange={(e) => e.target.value && onProjekt(paVerbinden(projekt, id, e.target.value))}>
               <option value="">– Gerät wählen –</option>

@@ -31,6 +31,8 @@ export interface Analyse {
   wurzeln: Knoten[]
   /** Potentialausgleichsschienen (nicht Teil des Strompfads) */
   potential: Knoten[]
+  /** Hilfsbetriebsmittel ohne Strompfad (Klemmleisten), liegen im Verlauf ihrer Verbindungen */
+  hilfs: Knoten[]
   knoten: Map<string, Knoten>
   meldungen: Meldung[]
   phasenlast: Record<Phase, number>
@@ -58,8 +60,15 @@ export function analysiere(p: Projekt): Analyse {
 
   const wurzeln: Knoten[] = []
   const potential: Knoten[] = []
+  const hilfs: Knoten[] = []
   for (const n of knoten.values()) {
     const q = n.k.quelle
+    if (n.def.hilfs) {
+      hilfs.push(n)
+      n.pole = 1
+      if (q) meldungen.push({ stufe: 'warnung', text: `${n.bmk}: eine ${n.def.label} hat keine Quelle; sie liegt im Verlauf ihrer Verbindungen`, id: n.k.id })
+      continue
+    }
     if (n.def.potential) {
       potential.push(n)
       n.leiter = ['PE']
@@ -106,7 +115,7 @@ export function analysiere(p: Projekt): Analyse {
   }
   wurzeln.forEach((w) => besuche(w, 0))
   for (const n of knoten.values()) {
-    if (!erreicht.has(n) && !n.def.potential) {
+    if (!erreicht.has(n) && !n.def.potential && !n.def.hilfs) {
       meldungen.push({ stufe: 'fehler', text: `${n.bmk} ist Teil eines Kreises (Quelle zeigt im Kreis)`, id: n.k.id })
       // Kreis aufbrechen
       if (n.eltern) n.eltern.kinder = n.eltern.kinder.filter((c) => c !== n)
@@ -119,6 +128,18 @@ export function analysiere(p: Projekt): Analyse {
   for (const d of p.datenverbindungen ?? []) {
     for (const id of [d.von, d.nach]) if (!knoten.has(id)) meldungen.push({ stufe: 'warnung', text: `Datenverbindung ${d.von} → ${d.nach}: "${id}" existiert nicht` })
     if (d.von === d.nach) meldungen.push({ stufe: 'warnung', text: `Datenverbindung ${d.von} zeigt auf sich selbst`, id: d.von })
+  }
+
+  // Klemmleisten verbinden genau zwei Leitungsabschnitte (Gerät – Klemmleiste – … – Gerät)
+  for (const h of hilfs) {
+    const anz = (p.datenverbindungen ?? []).filter((d) => d.von === h.k.id || d.nach === h.k.id).length
+    if (anz !== 2) meldungen.push({ stufe: anz ? 'warnung' : 'info', text: `${h.bmk}: Klemmleiste hat ${anz} Verbindung${anz === 1 ? '' : 'en'}, erwartet sind 2 (hin und weiter)`, id: h.k.id })
+  }
+  // Wandlerzähler ohne Wandler-Messleitung
+  for (const n of knoten.values()) {
+    if (n.k.typ !== 'zaehler' || n.k.params?.messart !== 'halbindirekt') continue
+    if (!(p.datenverbindungen ?? []).some((d) => (d.von === n.k.id || d.nach === n.k.id) && d.typ === 'wandler'))
+      meldungen.push({ stufe: 'info', text: `${n.bmk}: Wandlerzähler ohne Wandler-Messleitung (Datenverbindung mit typ: wandler)`, id: n.k.id })
   }
 
   for (const d of p.potentialausgleich ?? []) {
@@ -192,7 +213,7 @@ export function analysiere(p: Projekt): Analyse {
   if (Math.max(...pl) - Math.min(...pl) > 4.6) // 20 A Schieflast-Grenze ≈ 4,6 kVA
     meldungen.push({ stufe: 'warnung', text: `Schieflast > 4,6 kVA: L1 ${pl[0].toFixed(1)} / L2 ${pl[1].toFixed(1)} / L3 ${pl[2].toFixed(1)} kW (einphasige Verbraucher)` })
 
-  return { wurzeln, potential, knoten, meldungen, phasenlast }
+  return { wurzeln, potential, hilfs, knoten, meldungen, phasenlast }
 }
 
 /** Nächste freie ID mit gegebenem Präfix, z.B. F1, F2 ... */
