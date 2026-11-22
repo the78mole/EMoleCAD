@@ -1,6 +1,6 @@
 import YAML from 'yaml'
 import { TYPEN } from './library'
-import type { Datenverbindung, Komponente, PaVerbindung, Projekt, ParamWert } from './types'
+import { LEITUNGSTYPEN, type Datenverbindung, type Komponente, type Leitungstyp, type PaVerbindung, type Projekt, type ParamWert } from './types'
 
 export class YamlFehler extends Error {
   zeile?: number
@@ -49,6 +49,13 @@ export function parseYaml(text: string): Projekt {
       if (!istObjekt(d) || !d.von || !d.nach) throw new YamlFehler(`Datenverbindung #${i + 1}: "von" und "nach" sind nötig`)
       const v: Datenverbindung = { von: String(d.von), nach: String(d.nach) }
       if (d.art) v.art = String(d.art)
+      if (d.typ !== undefined && d.typ !== null && d.typ !== '' && d.typ !== 'daten') {
+        if (!LEITUNGSTYPEN.includes(String(d.typ) as Leitungstyp)) throw new YamlFehler(`Datenverbindung #${i + 1}: typ muss ${LEITUNGSTYPEN.join(', ')} sein`)
+        v.typ = String(d.typ) as Leitungstyp
+      }
+      if (d.kabel) v.kabel = String(d.kabel)
+      if (d.klemmeVon !== undefined && d.klemmeVon !== null && d.klemmeVon !== '') v.klemmeVon = String(d.klemmeVon)
+      if (d.klemmeNach !== undefined && d.klemmeNach !== null && d.klemmeNach !== '') v.klemmeNach = String(d.klemmeNach)
       return v
     })
   }
@@ -168,7 +175,15 @@ export function toYaml(p: Projekt): string {
       return o
     }),
   }
-  if (p.datenverbindungen?.length) roh.datenverbindungen = p.datenverbindungen.map((d) => (d.art ? { von: d.von, nach: d.nach, art: d.art } : { von: d.von, nach: d.nach }))
+  if (p.datenverbindungen?.length) roh.datenverbindungen = p.datenverbindungen.map((d) => {
+    const o: Record<string, string> = { von: d.von, nach: d.nach }
+    if (d.typ && d.typ !== 'daten') o.typ = d.typ
+    if (d.art) o.art = d.art
+    if (d.klemmeVon) o.klemmeVon = d.klemmeVon
+    if (d.klemmeNach) o.klemmeNach = d.klemmeNach
+    if (d.kabel) o.kabel = d.kabel
+    return o
+  })
   if (p.potentialausgleich?.length) roh.potentialausgleich = p.potentialausgleich.map((d) => (d.querschnitt ? { von: d.von, nach: d.nach, querschnitt: d.querschnitt } : { von: d.von, nach: d.nach }))
   const doc = new YAML.Document(roh)
   // kompakte Darstellung für Parameter und Kabel

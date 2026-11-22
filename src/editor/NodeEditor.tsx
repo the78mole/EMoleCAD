@@ -98,8 +98,8 @@ function Innen({ projekt, analyse, onChange }: Props) {
               sourceHandle: typDef(projekt.komponenten.find((k) => k.id === d.von)!.typ).daten ? 'daten-out' : undefined,
               targetHandle: typDef(projekt.komponenten.find((k) => k.id === d.nach)!.typ).daten ? 'daten-in' : undefined,
               type: 'default',
-              label: d.art,
-              className: 'kante-daten',
+              label: [d.art, d.kabel].filter(Boolean).join(' · ') || undefined,
+              className: `kante-daten kante-${d.typ ?? 'daten'}`,
             })),
         )
         .concat(
@@ -210,7 +210,7 @@ function Innen({ projekt, analyse, onChange }: Props) {
     const p = pRef.current
     // Neue Komponente automatisch an die Auswahl hängen, wenn das passt
     const sel = auswahl ? p.komponenten.find((k) => k.id === auswahl) : undefined
-    const quelle = sel && typDef(sel.typ).kinder && !typDef(typ).wurzel && !typDef(typ).potential ? sel.id : undefined
+    const quelle = sel && typDef(sel.typ).kinder && !typDef(typ).wurzel && !typDef(typ).potential && !typDef(typ).hilfs ? sel.id : undefined
     let position = pos
     if (!position) {
       const basis = sel ? (p.editor?.[sel.id] ?? autoLayout(p)[sel.id]) : undefined

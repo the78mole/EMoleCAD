@@ -4,6 +4,7 @@ export type SymbolArt =
   | 'hak' | 'zaehler' | 'sls' | 'trenner' | 'sicherung' | 'ls' | 'rcd' | 'rcbo' | 'spd'
   | 'wechselrichter' | 'pvgen' | 'speicher' | 'wallbox' | 'waermepumpe' | 'verbraucher'
   | 'steuerbox' | 'smgw' | 'verteiler' | 'klemme' | 'schiene' | 'pas'
+  | 'wandler' | 'schuetz' | 'messumformer' | 'fernwirk' | 'klemmleiste'
 
 export interface ParamDef {
   key: string
@@ -44,8 +45,34 @@ export interface TypDef {
   pa?: boolean
   /** Gehört nur zum Potentialausgleich, nicht zum Strompfad (z.B. PAS) */
   potential?: boolean
+  /** Hilfsbetriebsmittel ohne Strompfad (z. B. Klemmleiste für Mess-/Steuerleitungen): keine Quelle,
+   *  wird in den Verlauf seiner Verbindungen eingezeichnet */
+  hilfs?: boolean
   /** Kurzbeschriftung im Plan aus den Parametern */
   kurz?: (p: Record<string, ParamWert>) => string
+}
+
+/** Benannte Anschlüsse eines Geräts aus dem Parameter `anschluesse` ("UH:17/18, I-L1:1/3, out1:20/21") */
+export function anschluesse(p?: Record<string, ParamWert>): { name: string; klemmen: string }[] {
+  const t = p?.anschluesse
+  if (t === undefined || t === '') return []
+  return String(t).split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+    const i = s.indexOf(':')
+    return i < 0 ? { name: s, klemmen: s } : { name: s.slice(0, i).trim(), klemmen: s.slice(i + 1).trim() }
+  })
+}
+
+/** Anschlussangabe für den Plan: „I-L1“ wird über die Anschlussliste zu „I-L1 1/3“ */
+export function klemmenText(name: string | undefined, p?: Record<string, ParamWert>): string {
+  if (!name) return ''
+  const liste = anschluesse(p)
+  const namen = name.split(',').map((t) => t.trim()).filter(Boolean)
+  // mehrere Anschlüsse: nur die Klemmennummern, damit die Angabe kurz bleibt
+  return namen.map((t) => {
+    const a = liste.find((x) => x.name === t)
+    if (!a || a.klemmen === a.name) return t
+    return namen.length > 1 ? a.klemmen : `${a.name} ${a.klemmen}`
+  }).join(', ')
 }
 
 const n = (v: ParamWert | undefined) => (v === undefined || v === '' ? '' : String(v))
@@ -90,7 +117,7 @@ export const BIBLIOTHEK: TypDef[] = [
     pole: 3, poleWaehlbar: false, kinder: true, wurzel: true, durchgang: true, symbol: 'hak',
     params: [
       { key: 'sicherung', label: 'Vorsicherung', art: 'zahl', einheit: 'A', standard: 63 },
-      { key: 'sicherungstyp', label: 'Sicherungstyp', art: 'auswahl', optionen: ['NH00 gG', 'NH1 gG', 'D02 gG'], standard: 'NH00 gG' },
+      { key: 'sicherungstyp', label: 'Sicherungstyp', art: 'auswahl', frei: true, optionen: ['NH00 gG', 'NH1 gG', 'NH2 gG', 'NH3 gG', 'D02 gG'], standard: 'NH00 gG' },
       { key: 'netzbetreiber', label: 'Netzbetreiber', art: 'text', standard: '' },
     ],
     kurz: (p) => `${n(p.sicherungstyp)} ${n(p.sicherung)}A`,
@@ -111,8 +138,23 @@ export const BIBLIOTHEK: TypDef[] = [
       { key: 'art', label: 'Art', art: 'auswahl', optionen: ['Bezug', 'Zweirichtung', 'Erzeugung', 'Unterzähler'], standard: 'Zweirichtung' },
       { key: 'zaehlernummer', label: 'Zählernummer', art: 'text', standard: '' },
       { key: 'messkonzept', label: 'Messkonzept', art: 'text', standard: '' },
+      // halbindirekt: Wandlerzähler, Strompfad über Stromwandler (Datenverbindung typ wandler),
+      // Spannungspfad direkt von den Hauptleitern abgegriffen
+      { key: 'messart', label: 'Messart', art: 'auswahl', optionen: ['direkt', 'halbindirekt'], standard: 'direkt' },
+      { key: 'spannungspfad', label: 'Spannungspfad-Absicherung', art: 'text', standard: '' },
     ],
-    kurz: (p) => `${n(p.art)}${p.zaehlernummer ? ' ' + p.zaehlernummer : ''}`,
+    kurz: (p) => `${n(p.art)}${p.messart === 'halbindirekt' ? ' Wandlermessung' : ''}${p.zaehlernummer ? ' ' + p.zaehlernummer : ''}`,
+  },
+  {
+    typ: 'stromwandler', daten: true, label: 'Stromwandler(satz)', kategorie: 'Einspeisung', bmk: 'BE', farbe: '#c2410c',
+    pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'wandler',
+    params: [
+      { key: 'uebersetzung', label: 'Übersetzung', art: 'auswahl', frei: true, optionen: ['100/5 A', '150/5 A', '200/5 A', '250/5 A', '300/5 A', '400/5 A', '500/5 A', '600/5 A', '800/5 A', '1000/5 A', '500/1 A'], standard: '500/5 A' },
+      { key: 'klasse', label: 'Genauigkeitsklasse', art: 'auswahl', frei: true, optionen: ['0,2S', '0,5S', '0,5', '1', '3'], standard: '0,5S' },
+      { key: 'buerde', label: 'Bemessungsbürde', art: 'text', einheit: 'VA', standard: '5' },
+      { key: 'zweck', label: 'Zweck', art: 'auswahl', frei: true, optionen: ['Abrechnung', 'Fernwirktechnik', 'Messung'], standard: 'Abrechnung' },
+    ],
+    kurz: (p) => [n(p.uebersetzung), p.klasse ? `Kl. ${p.klasse}` : '', p.buerde ? `${p.buerde} VA` : ''].filter(Boolean).join(', '),
   },
   {
     typ: 'sls', label: 'SLS-Schalter', kategorie: 'Schutz', bmk: 'FC', farbe: '#ef4444',
@@ -125,6 +167,16 @@ export const BIBLIOTHEK: TypDef[] = [
     pole: 3, poleWaehlbar: true, nSchaltbar: true, kinder: true, durchgang: true, symbol: 'trenner',
     params: [{ key: 'nennstrom', label: 'Nennstrom', art: 'zahl', einheit: 'A', standard: 63 }],
     kurz: (p) => `${n(p.nennstrom)}A`,
+  },
+  {
+    typ: 'schuetz', daten: true, label: 'Schütz / motorischer Schalter', kategorie: 'Schutz', bmk: 'QA', farbe: '#ea580c',
+    pole: 3, poleWaehlbar: true, kinder: true, durchgang: true, symbol: 'schuetz',
+    params: [
+      { key: 'nennstrom', label: 'Bemessungsstrom', art: 'zahl', einheit: 'A', standard: 400 },
+      { key: 'antrieb', label: 'Antrieb', art: 'auswahl', optionen: ['Spule', 'Motor'], standard: 'Motor' },
+      { key: 'steuerspannung', label: 'Steuerspannung', art: 'text', standard: '230 V AC' },
+    ],
+    kurz: (p) => `${n(p.nennstrom)}A${p.antrieb === 'Motor' ? ' motorisch' : ''}`,
   },
   {
     typ: 'sicherung', label: 'Schmelzsicherung', kategorie: 'Schutz', bmk: 'FC', farbe: '#f59e0b',
@@ -239,6 +291,43 @@ export const BIBLIOTHEK: TypDef[] = [
     pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'smgw',
     params: [{ key: 'modell', label: 'Typ/Modell', art: 'text', standard: '' }],
     kurz: (p) => n(p.modell) || 'SMGW',
+  },
+  {
+    typ: 'messumformer', daten: true, label: 'Messumformer', kategorie: 'Sonstiges', bmk: 'TF', farbe: '#0369a1',
+    // Quelle = Hilfsspannung (z. B. über LS); Messspannung, Wandlerströme und Ausgänge als Verbindungen
+    pole: 1, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'messumformer',
+    params: [
+      { key: 'modell', label: 'Typ/Modell', art: 'text', standard: '' },
+      { key: 'eingang', label: 'Stromeingang', art: 'auswahl', frei: true, optionen: ['1 A', '5 A'], standard: '5 A' },
+      { key: 'ausgang', label: 'Ausgang', art: 'auswahl', frei: true, optionen: ['4...20 mA', '0...20 mA', '0...10 V'], standard: '4...20 mA' },
+      // Anschlüsse „Name:Klemmen“, durch Komma getrennt; UH = Hilfsspannung (an der Zuleitung angeschrieben)
+      { key: 'anschluesse', label: 'Anschlüsse', art: 'text', standard: 'UH:17/18, U-L1:2, U-L2:5, U-L3:8, U-N:11, I-L1:1/3, I-L2:4/6, I-L3:7/9, out1:20/21, out2:23/24, out3:26/27, out4:29/30, G1:12/13, G2:14/15' },
+      { key: 'ort', label: 'Einbauort', art: 'text', standard: '' },
+    ],
+    kurz: (p) => `${n(p.modell)}${p.ausgang ? ' ' + p.ausgang : ''}`.trim(),
+  },
+  {
+    typ: 'fernwirk', daten: true, label: 'Fernwirktechnik (RTU)', kategorie: 'Sonstiges', bmk: 'KE', farbe: '#334155',
+    pole: 1, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'fernwirk',
+    params: [
+      { key: 'modell', label: 'Typ/Modell', art: 'text', standard: '' },
+      { key: 'betreiber', label: 'Betreiber', art: 'text', standard: 'Netzbetreiber' },
+      { key: 'anschluesse', label: 'Anschlüsse', art: 'text', standard: '' },
+      { key: 'ort', label: 'Einbauort', art: 'text', standard: '' },
+    ],
+    kurz: (p) => n(p.modell) || 'Fernwirktechnik',
+  },
+  {
+    typ: 'klemmleiste', daten: true, hilfs: true, label: 'Klemmleiste (Reihen-/Prüfklemmen)', kategorie: 'Sonstiges', bmk: 'XD', farbe: '#57534e',
+    pole: 1, poleWaehlbar: false, kinder: false, durchgang: false, symbol: 'klemmleiste',
+    params: [
+      { key: 'art', label: 'Art', art: 'auswahl', optionen: ['Reihenklemmen', 'Prüfklemmleiste', 'Trennklemmen'], standard: 'Reihenklemmen' },
+      { key: 'klemmen', label: 'Klemmenanzahl', art: 'zahl', standard: 7 },
+      // Klemmenbezeichnungen, durch Komma getrennt, z. B. "1S1, 1S2, 2S1, 2S2, 3S1, 3S2, PE"
+      { key: 'belegung', label: 'Belegung', art: 'text', standard: '' },
+      { key: 'ort', label: 'Einbauort', art: 'text', standard: '' },
+    ],
+    kurz: (p) => `${p.art === 'Prüfklemmleiste' ? 'Prüfklemmen' : p.art === 'Trennklemmen' ? 'Trennklemmen' : 'Klemmen'} 1...${n(p.klemmen) || '?'}`,
   },
   {
     typ: 'sammelschiene', pa: true, label: 'Sammelschiene', kategorie: 'Sonstiges', bmk: 'WD', farbe: '#1e293b',

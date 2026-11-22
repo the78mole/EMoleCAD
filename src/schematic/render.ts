@@ -1,6 +1,6 @@
 import type { Analyse, Knoten, LeiterName } from '../model/analyse'
-import type { SymbolArt } from '../model/library'
-import type { Datenverbindung, PaVerbindung, Projekt } from '../model/types'
+import { anschluesse, klemmenText, standardParams, type SymbolArt } from '../model/library'
+import type { Datenverbindung, Leitungstyp, PaVerbindung, Projekt } from '../model/types'
 import { Svg } from './svg'
 
 export type Modus = 'einpolig' | 'allpolig'
@@ -141,6 +141,9 @@ function ausgaenge(n: Knoten): LeiterName[] {
 }
 
 export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
+  // Verbindungen über Klemmleisten zu einem Zug zusammenfassen (Gerät – Klemmleiste – … – Gerät)
+  o = { ...o, daten: zuege(o.daten ?? [], a) }
+  klemmOrte = []
   const svg = new Svg()
   const vw = new Verweise()
   const allp = o.modus === 'allpolig'
@@ -261,7 +264,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   /** Rechtes Ende der Gerätebeschriftung (Schätzung über die Zeichenzahl) */
   const beschriftungsEnde = (t: Lage) => {
     const n = t.n
-    const rechts = allp ? t.x + ((n.leiter.length - 1) / 2) * D + (n.def.durchgang ? 3.5 : 4.5) : t.x + (n.def.durchgang ? 5.5 : 6.5)
+    const rechts = (allp ? t.x + ((n.leiter.length - 1) / 2) * D + (n.def.durchgang ? 3.5 : 4.5) : t.x + (n.def.durchgang ? 5.5 : 6.5)) + textVersatz(n, allp)
     const kurz = kurzText(n)
     const zeilen = [...(kurz.trim() ? umbrechen(kurz, 12) : []), ...(n.kinder.length && n.k.name ? umbrechen(n.k.name, 14) : [])]
     return rechts + Math.max(n.bmk.length * 1.5, ...zeilen.map((z) => z.length * 1.0))
@@ -304,7 +307,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   let kopfBreite = 0
   let trennX: number | undefined
   if (kette.length) {
-    kopfBreite = allp ? 46 : 44
+    // Platz für Hilfsleitungen, die rechts an der Einspeisekette entlang laufen
+    const kettenLeitungen = (o.daten ?? []).filter((d) => kette.slice(0, -1).some((k) => k.k.id === d.von || k.k.id === d.nach)).length
+    kopfBreite = (allp ? 46 : 44) + Math.max(0, ...kette.map((k) => textVersatz(k, allp))) + (o.daten ?? []).length * 1.6 * Math.min(1, kettenLeitungen)
     const kx = 6 + (allp ? 12 : 8)
     kette.forEach((k, i) => {
       const symTop = symTopZeile(zeilen - 1 - i)
@@ -428,6 +433,9 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     else if (!allp && eltern && !l.kette) leiterZahl(svg, l, l.steig?.y.L1 ?? eltern.busY.L1, !!o.farbig)
     if (allp) symbolAllpolig(svg, l, cx, farbe, o)
     else symbolEinpolig(svg, l)
+    // Klemmen der Hilfsspannung (Anschluss „UH“) an der Zuleitung
+    const uh = anschluesse(parameter(n)).find((x) => x.name === 'UH')
+    if (uh && !n.def.durchgang) svg.text((allp ? Math.max(...n.leiter.map((le) => cx(l, le))) : l.x) + 0.7, l.aufwaerts ? l.symBot - 0.4 : l.symTop + 1.3, uh.klemmen, { groesse: 1.3 })
     if (n.def.symbol === 'schiene' && l.kette && n === kette[kette.length - 1]) {
       // Sammelschiene als Kopf der Einspeisung: Beschriftung an der Schiene
       const kurz = kurzText(n)
@@ -443,8 +451,28 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   const unterste = symTopZeile(zeilen - 1)
   // Kanal unter den Endverbrauchern; ohne Tabelle unter deren senkrechter Beschriftung
   const textUnten = mitTabelle ? 0 : Math.max(0, ...[...eigene.values()].filter((l) => !l.n.kinder.length && Math.abs(l.symTop - unterste) < 0.01).map((l) => Math.max((l.n.k.name ?? l.n.def.label).length, kabelText(l.n).length) * 1.25 + 4))
-  const kanal = { verb: kanalVerb, y0: unterste + SYM_H + 1 + textUnten, unterste, mitTabelle }
+  // Klemmenangaben an den Abgängen in den Kanal brauchen Platz über der obersten Spur
+  const kanalKlemmen = Math.max(0, ...[...kanalVerb].flatMap((d) => [d.von, d.nach].map((id) => { const l = lagen.get(a.knoten.get(id)!); return l ? klemmenLaenge(d, l) : 0 })))
+  const kanal = { verb: kanalVerb, y0: unterste + SYM_H + 1 + textUnten + kanalKlemmen, unterste, mitTabelle }
   const daten = datenLinien(svg, eigene, o, allp, cx, vw, kanal)
+  // Einbauorte (z. B. eigener Messumformerschrank) als Strichpunkt-Rahmen um Geräte und Klemmleisten
+  const orte = new Map<string, { x0: number; y0: number; x1: number; y1: number }>()
+  const erweitere = (ort: string, b: { x0: number; y0: number; x1: number; y1: number }) => {
+    const r = orte.get(ort)
+    orte.set(ort, r ? { x0: Math.min(r.x0, b.x0), y0: Math.min(r.y0, b.y0), x1: Math.max(r.x1, b.x1), y1: Math.max(r.y1, b.y1) } : { ...b })
+  }
+  for (const l of eigene.values()) {
+    const ort = l.n.k.params?.ort
+    if (!ort || l.kette || l.n.def.symbol === 'verteiler') continue
+    const g = geometrie(l, allp, cx)
+    erweitere(String(ort), { x0: l.x - g.hb - 1.5, y0: g.oben - 1.5, x1: Math.max(l.x + g.hb + 1.5, beschriftungsEnde(l)), y1: g.unten + 1.5 })
+  }
+  for (const k of klemmOrte) if (k.n.k.params?.ort) erweitere(String(k.n.k.params.ort), { x0: k.x0 - 1.5, y0: k.y0 - 1.5, x1: k.x1 + 1, y1: k.y1 + 1 })
+  for (const [ort, r] of orte) {
+    const y0 = r.y0 - 3
+    svg.rechteck(r.x0, y0, r.x1 - r.x0, r.y1 - y0, { farbe: '#444', fuellung: 'none', breite: 0.25, strich: '2 0.8 0.4 0.8' })
+    svg.text(r.x0 + 0.8, y0 + 2, ort, { groesse: 1.6, farbe: '#444', fett: true })
+  }
   const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 }, vw)
   for (const l of eigene.values()) vw.orte.set(l.n.k.id, { x: l.x, y: (l.symTop + l.symBot) / 2 })
   breite = Math.max(breite, pa.rechts + 4, daten.rechts + 4)
@@ -458,7 +486,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
 }
 
 /** Typen, die die Einspeisekette fortsetzen (Hauptstromweg vom HAK zur Hauptverteilung) */
-const HAUPTSTRANG = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung']
+const HAUPTSTRANG = ['hlak', 'zaehler', 'sls', 'trennschalter', 'sicherung', 'stromwandler', 'schuetz']
 
 export function hauptstrang(k: Knoten): Knoten | undefined {
   if (!k.def.durchgang) return undefined
@@ -534,7 +562,8 @@ function geometrie(l: Lage, allp: boolean, cx: Cx) {
   if (!allp && l.n.def.symbol === 'verbraucher') unten = l.symTop + verbraucherZeichen(l.n).unten
   // rechte Kante: beim allpoligen Zähler endet der Kasten vor dem PE
   const ohnePE = l.n.leiter.filter((le) => le !== 'PE').map((le) => cx(l, le))
-  const rechts = allp && l.n.def.symbol === 'zaehler' && ohnePE.length ? Math.max(...ohnePE) + 2 : l.x + hb
+  const rechts = halbindirekt(l.n) ? (allp ? Math.max(...xs) : l.x) + ZAEHLER_SEITE.rechts(allp)
+    : allp && l.n.def.symbol === 'zaehler' && ohnePE.length ? Math.max(...ohnePE) + 2 : l.x + hb
   return { hb, oben, unten, mitte: (oben + unten) / 2, rechts, xmax: Math.max(...xs) }
 }
 
@@ -554,9 +583,10 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
   let unten = 0
   if (!alleVerb.length) return { rechts, unten }
   const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
-  const farbe = allp && !o.farbig ? '#000' : '#8e24aa'
+  const stilVon = (d: Datenverbindung) => leitungsStil(d.typ, allp, !!o.farbig)
+  const kanalAm = (l: Lage) => (kanal ? [...kanal.verb].filter((d) => d.von === l.n.k.id || d.nach === l.n.k.id).length : 0)
   if (kanal?.verb.size) {
-    const k = datenKanal(svg, [...kanal.verb].map((d) => ({ d, a: nachId.get(d.von)!, b: nachId.get(d.nach)! })).filter((v) => v.a && v.b), kanal, allp, cx, farbe)
+    const k = datenKanal(svg, [...kanal.verb].map((d) => ({ d, a: nachId.get(d.von)!, b: nachId.get(d.nach)! })).filter((v) => v.a && v.b), kanal, allp, cx, stilVon)
     rechts = k.rechts
     unten = k.unten
   }
@@ -584,7 +614,9 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     const id = `${l.n.k.id}:${s}`
     const i = zaehl.get(id) ?? 0
     zaehl.set(id, i + 1)
-    const v = (i - ((gesamt.get(id) ?? 1) - 1) / 2) * 2.5
+    // neben den Abgängen in den Steuerleitungskanal (die liegen mittig am Gerät)
+    const kc = s === 'oben' || s === 'unten' ? kanalAm(l) : 0
+    const v = kc ? -((gesamt.get(id) ?? 1) - i) * 2.5 - ((kc - 1) / 2) * KANAL_ABSTAND : (i - ((gesamt.get(id) ?? 1) - 1) / 2) * 2.5
     const g = geo(l)
     switch (s) {
       case 'oben': return { p: [l.x + v, g.oben], s: [l.x + v, g.oben - stich] }
@@ -604,23 +636,31 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     return (a || b) && ziel ? { l: (a ?? b)!, ziel, id: fern! } : undefined
   }
   // Rechtes Ende der Beschriftungen in der Einspeisekette (Schätzung über die Zeichenzahl)
-  const ketteTextEnde = Math.max(0, ...[...lagen.values()].filter((l) => l.kette).map((l) => {
+  /** Sammelschiene als Kopf der Kette: Beschriftung oben an der Schiene, nicht neben den Geräten */
+  const istKopf = (l: Lage) => l.kette && l.n.def.symbol === 'schiene' && !l.n.kinder.some((k) => lagen.get(k)?.kette)
+  const textEnde = (l: Lage) => {
     const n = l.n
-    if (n.def.symbol === 'schiene' && !n.kinder.some((k) => lagen.get(k)?.kette)) {
+    if (istKopf(l)) {
       // Sammelschiene als Kopf der Kette: einzeilige Beschriftung „BMK  Name“ (2.3) und ggf. Kenndaten 40 mm weiter
       const kurz = kurzText(n)
       const x0 = l.x + (allp ? 12 : 4)
       const ende = x0 + `${n.bmk}  ${n.k.name ?? kurz}`.length * 1.3
       return n.k.name && kurz ? Math.max(ende, x0 + 40 + kurz.length * 1.1) : ende
     }
-    const r = allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + 3.5 : l.x + 5.5
+    const r = (allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + 3.5 : l.x + 5.5) + textVersatz(n, allp)
     const zeilen = [...umbrechen(kurzText(n), 12), ...(n.k.name ? umbrechen(n.k.name, 14) : [])]
     return r + Math.max(n.bmk.length * 1.5, ...zeilen.map((z) => z.length * 1.0))
-  }))
+  }
+  const kettenLagen = [...lagen.values()].filter((l) => l.kette)
+  const ketteTextEnde = Math.max(0, ...kettenLagen.map(textEnde))
+  // Leitungen zwischen Geräten unterhalb des Kopfs laufen links an dessen Beschriftung vorbei
+  const ketteTextEndeOhneKopf = Math.max(0, ...kettenLagen.filter((l) => !istKopf(l)).map(textEnde))
   const stichGesamt = new Map<Lage, number>()
   for (const d of liste) { const v = verweisZiel(d); if (v) stichGesamt.set(v.l, (stichGesamt.get(v.l) ?? 0) + 1) }
   const stichNr = new Map<Lage, number>()
   liste.forEach((d, i) => {
+    const st = stilVon(d)
+    const farbe = st.farbe
     let a = nachId.get(d.von), b = nachId.get(d.nach)
     // Gegenstelle auf einem anderen Blatt: kurzer Stich mit Verweis
     const verweis = verweisZiel(d)
@@ -635,7 +675,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       const q = anschluss(l, 3 + liste.length * 1.6 + stufe * 2.8)
       const rechtsterStich = l.x + (((gesamt.get(`${l.n.k.id}:${seite(l)}`) ?? 1) - 1) / 2) * 2.5
       const ende = [senkrecht ? Math.max(q.s[0], rechtsterStich) + 3 : q.s[0] + 4, q.s[1]]
-      svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
+      svg.pfad(`M ${q.p[0]} ${q.p[1]} L ${q.s[0]} ${q.s[1]} L ${ende[0]} ${ende[1]}`, { farbe, breite: st.breite, strich: st.strich })
       svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
       const text = `${d.art ? d.art + ': ' : ''}${ziel.bmk}  `
       // Gegenstelle ist der Stich derselben Verbindung auf dem anderen Blatt
@@ -649,19 +689,29 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
     }
     if (!a || !b || a === b) return
     // Geräte in der Einspeisekette werden seitlich angefahren: dort immer als Ziel routen
-    if (seite(a) === 'kette' && seite(b) !== 'kette') [a, b] = [b, a]
+    let vorwaerts = true
+    if (seite(a) === 'kette' && seite(b) !== 'kette') { [a, b] = [b, a]; vorwaerts = false }
     const stich = 3 + i * 1.6
-    const q = anschluss(a, stich, b), z = anschluss(b, stich, a)
+    // senkrechte Abgänge mit Klemmenangabe so lang, dass die Angabe daneben Platz hat
+    const ext = (l: Lage) => (seite(l) === 'oben' || seite(l) === 'unten' ? Math.max(0, ...liste.map((e) => klemmenLaenge(e, l))) : 0)
+    const q = anschluss(a, stich + ext(a), b), z = anschluss(b, stich + ext(b), a)
     let pkt: number[][]
     let ecke: number[]
-    if (seite(b) === 'kette' && seite(a) === 'oben' && q.p[1] > z.p[1] + 1 && q.p[0] > ketteTextEnde) {
+    if (seite(a) === 'kette' && seite(b) === 'kette') {
+      // zwei Geräte der Einspeisekette (z. B. Stromwandler – Wandlerzähler): rechts an den
+      // Beschriftungen der Kette vorbei
+      const x = (istKopf(a) || istKopf(b) ? ketteTextEnde : ketteTextEndeOhneKopf) + 1.5 + i * 1.6
+      rechts = Math.max(rechts, x)
+      ecke = [x, q.p[1]]
+      pkt = [q.p, ecke, [x, z.p[1]], z.p]
+    } else if (seite(b) === 'kette' && seite(a) === 'oben' && q.p[1] > z.p[1] + 1 && q.p[0] > ketteTextEnde) {
       // direkt: senkrecht hoch, dann waagerecht in die rechte Seite des Geräts
       ecke = [q.p[0], z.p[1]]
       pkt = [q.p, ecke, z.p]
     } else if (seite(b) === 'kette' && seite(a) !== 'kette') {
       // Gerät der Einspeisekette: Senkrechte rechts an den Beschriftungen der Kette vorbei,
       // dann waagerecht über der Beschriftung in den Anschluss
-      const x = Math.max(z.s[0], ketteTextEnde + 1.5 + i * 1.6)
+      const x = Math.max(z.s[0], (istKopf(b) ? ketteTextEnde : ketteTextEndeOhneKopf) + 1.5 + i * 1.6)
       rechts = Math.max(rechts, x)
       ecke = [x, q.s[1]]
       pkt = [q.p, q.s, ecke, [x, z.p[1]], z.p]
@@ -669,13 +719,13 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       ecke = [z.s[0], q.s[1]]
       pkt = [q.p, q.s, ecke, z.s, z.p]
     }
-    svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' })
-    svg.kreis(q.p[0], q.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
-    svg.kreis(z.p[0], z.p[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
-    if (d.art) {
+    zeichneZug(svg, vorwaerts ? pkt : [...pkt].reverse(), d, st, a.n.k.id === d.von ? a : b, a.n.k.id === d.von ? b : a)
+    if (d.art && !d.kabel) {
       const direkt = pkt.length === 3
       const lang = direkt || Math.abs(ecke[0] - q.s[0]) > 8
-      const tx = direkt ? (ecke[0] + z.p[0]) / 2 : lang ? (q.s[0] + ecke[0]) / 2 : z.s[0] + 1
+      // Mess-/Analogleitungen: Angabe im ersten Drittel, damit sie nicht mit Kabelangaben paralleler Leitungen zusammenfällt
+      const anteil = d.typ && d.typ !== 'daten' ? 0.7 : 0.5
+      const tx = direkt ? (ecke[0] + z.p[0]) / 2 : lang ? q.s[0] + (ecke[0] - q.s[0]) * anteil : z.s[0] + 1
       const ty = lang ? ecke[1] - 0.8 : (ecke[1] + z.s[1]) / 2
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
@@ -690,8 +740,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
  * ihrem Teilbaum. Verschachtelte Leitungen bekommen innen liegende Spuren, damit sich
  * senkrechte und waagerechte Stücke möglichst nicht kreuzen.
  */
-function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], k: Kanal, allp: boolean, cx: Cx, farbe: string): { rechts: number; unten: number } {
-  const stil = { farbe, breite: 0.3, strich: '1.6 0.6 0.3 0.6' }
+function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], k: Kanal, allp: boolean, cx: Cx, stilVon: (d: Datenverbindung) => Stil): { rechts: number; unten: number } {
   const vonUnten = (l: Lage) => l.kanalX === undefined || (!l.n.kinder.length && !l.aufwaerts && !l.kette && Math.abs(l.symTop - k.unterste) < 0.01)
   const basis = (l: Lage) => (vonUnten(l) ? l.x : l.kanalX!)
   // Spuren: kürzere Leitungen innen (oben), überlappende darunter
@@ -743,8 +792,9 @@ function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], 
     const p = ende.get(`${nr.get(v)}:${v.a.n.k.id}`)!
     const q = ende.get(`${nr.get(v)}:${v.b.n.k.id}`)!
     const pkt = [...p.pfad, ...[...q.pfad].reverse()]
-    svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), stil)
-    for (const e of [p.pfad[0], q.pfad[0]]) svg.kreis(e[0], e[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
+    const stil = stilVon(v.d)
+    const farbe = stil.farbe
+    zeichneZug(svg, pkt, v.d, stil, v.a, v.b)
     rechts = Math.max(rechts, p.x, q.x)
     unten = Math.max(unten, p.y + 1)
     if (!v.d.art) continue
@@ -1050,7 +1100,7 @@ function kurzText(n: Knoten): string {
   return `${kurz} ${n.k.pole}-polig${n.voreilend ? ' voreilend' : ''}`.trim()
 }
 
-function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: boolean; kreis?: boolean; farbe?: string; dx?: number; voreilend?: boolean }) {
+function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: boolean; kreis?: boolean; farbe?: string; dx?: number; voreilend?: boolean; schuetz?: boolean }) {
   const fa = o.farbe ?? '#000'
   const ya = y0 + 3.5, yb = y1 - 3.5
   const dx = o.dx ?? 2.6
@@ -1062,6 +1112,8 @@ function schalter(svg: Svg, x: number, y0: number, y1: number, o: { kreuz?: bool
     svg.linie(x - 0.8, ya + 0.8, x + 0.8, ya - 0.8, { farbe: fa })
   }
   if (o.kreis) svg.kreis(x, ya - 0.6, 0.6, { farbe: fa, fuellung: '#fff' })
+  // Schütz (IEC 60617 S00284): Halbkreis am festen Kontakt
+  if (o.schuetz) svg.pfad(`M ${x - 0.8} ${ya - 0.8} A 0.8 0.8 0 0 0 ${x + 0.8} ${ya - 0.8}`, { farbe: fa, breite: 0.3 })
   if (o.voreilend) {
     // Strich an der Spitze des Schaltstücks, senkrecht dazu in Richtung fester Kontakt
     const ax = -dx, ay = ya + 0.6 - yb
@@ -1118,6 +1170,15 @@ function boxInhalt(svg: Svg, art: SymbolArt, x0: number, y0: number, w: number, 
       break
     case 'smgw':
       t('SMGW', 1.9)
+      break
+    case 'fernwirk':
+      t('FW', 2.2)
+      break
+    case 'messumformer':
+      // Messumformer (Umformer allgemein): Diagonale, Eingang U/I, Ausgang Analogsignal
+      svg.linie(x0, y0 + h, x0 + w, y0)
+      svg.text(x0 + 0.8, y0 + 3, 'U,I', { groesse: 1.8 })
+      svg.text(x0 + w - 0.8, y0 + h - 1, 'mA', { groesse: 1.8, anker: 'end' })
       break
     case 'spd': {
       // Überspannungsableiter (IEC 60617): Rechteck, vom Leiteranschluss ein Pfeil zur Erdseite,
@@ -1254,6 +1315,10 @@ function symbolEinpolig(svg: Svg, l: Lage) {
       break
     case 'zaehler':
       verbindung(y0, y1)
+      if (halbindirekt(n)) {
+        wandlerZaehler(svg, n, [{ le: 'L1', x, farbe: '#000' }], y0, false)
+        break
+      }
       svg.rechteck(x - 4.5, y0 + 2.5, 9, 9)
       svg.text(x, y0 + 7.8, 'kWh', { groesse: 2.3, anker: 'middle', fett: true })
       if (n.k.params?.art === 'Zweirichtung') {
@@ -1270,6 +1335,17 @@ function symbolEinpolig(svg: Svg, l: Lage) {
     case 'trenner':
       schalter(svg, x, y0, y1, { kreis: true })
       break
+    case 'schuetz': {
+      const m = schalter(svg, x, y0, y1, { schuetz: true })
+      if (n.k.params?.antrieb === 'Motor') motorAntrieb(svg, m.mitteX, m.mitteY)
+      break
+    }
+    case 'wandler': {
+      verbindung(y0, y1)
+      stromwandler(svg, x, (y0 + y1) / 2, 2.2, y0 + 4, x + 4.5)
+      if (n.leiter.filter(istPhase).length > 1) svg.text(x - 2.8, (y0 + y1) / 2 + 0.6, `${n.leiter.filter(istPhase).length}x`, { groesse: 1.6, anker: 'end' })
+      break
+    }
     case 'sicherung':
       sicherung(svg, x, y0, y1)
       break
@@ -1359,7 +1435,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     switch (art) {
       case 'trenner':
         return istPhase(le) || (le === 'N' && !!n.nGeschaltet)
-      case 'hak': case 'sicherung': case 'ls': case 'sls':
+      case 'hak': case 'sicherung': case 'ls': case 'sls': case 'schuetz':
         return istPhase(le)
       case 'rcd': case 'rcbo':
         return istPhase(le) || le === 'N'
@@ -1380,10 +1456,24 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
     else if (art === 'rcd' || art === 'rcbo') {
       glieder.push(schalter(svg, xx, y0, y1 - 3.5, { farbe: fa, kreuz: art === 'rcbo' && le !== 'N', dx: 2 }))
       svg.linie(xx, y1 - 3.5, xx, y1, { farbe: fa })
-    } else glieder.push(schalter(svg, xx, y0, y1, { farbe: fa, kreuz: art === 'ls' || art === 'sls', kreis: art === 'trenner', dx: 2, voreilend: le === 'N' && !!n.voreilend }))
+    } else glieder.push(schalter(svg, xx, y0, y1, { farbe: fa, kreuz: art === 'ls' || art === 'sls', kreis: art === 'trenner', schuetz: art === 'schuetz', dx: 2, voreilend: le === 'N' && !!n.voreilend }))
   }
 
-  if (art === 'zaehler') {
+  if (art === 'wandler') {
+    // je Außenleiter ein Wandler; Sekundärleitungen gesammelt nach rechts oben zum Anschluss
+    const phasen = n.leiter.filter(istPhase)
+    const ym = (y0 + y1) / 2
+    const ya = y0 + 4
+    phasen.forEach((le) => stromwandler(svg, cx(l, le), ym, 1.4, ya, undefined, farbe(le)))
+    if (phasen.length) svg.linie(cx(l, phasen[0]) + 0.6, ya, xmax + 2.5, ya, { farbe: '#c2410c', breite: 0.25 })
+  }
+  if (art === 'schuetz' && n.k.params?.antrieb === 'Motor' && glieder.length) motorAntrieb(svg, glieder[0].mitteX, glieder[0].mitteY)
+  if (art === 'zaehler' && halbindirekt(n)) {
+    wandlerZaehler(svg, n, n.leiter.map((le) => ({ le, x: cx(l, le), farbe: farbe(le) })), y0, true)
+    return
+  }
+
+  if (art === 'zaehler' && !halbindirekt(n)) {
     const zs = n.leiter.filter((le) => le !== 'PE').map((le) => cx(l, le))
     const a = Math.min(...zs) - 2, b = Math.max(...zs) + 2
     svg.rechteck(a, y0 + 2.5, b - a, 9)
@@ -1421,7 +1511,7 @@ function symbolAllpolig(svg: Svg, l: Lage, cx: (l: Lage, le: LeiterName, liste?:
 
 function beschriftung(svg: Svg, l: Lage, allp: boolean, cx: Cx, mitTabelle: boolean, datenAnschluesse = 0) {
   const n = l.n
-  const rechts = allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + (n.def.durchgang ? 3.5 : 4.5) : l.x + (n.def.durchgang ? 5.5 : 6.5)
+  const rechts = (allp ? Math.max(...n.leiter.map((le) => cx(l, le))) + (n.def.durchgang ? 3.5 : 4.5) : l.x + (n.def.durchgang ? 5.5 : 6.5)) + textVersatz(n, allp)
   const kurz = kurzText(n)
   // Bei Datenanschlüssen rechts oben (Einspeisekette) die Beschriftung darunter beginnen
   let y = l.symTop + 3.6 + (l.kette && datenAnschluesse ? 2.5 + datenAnschluesse * 1.6 : 0)
@@ -1474,4 +1564,263 @@ function umbrechen(s: string, max: number): string[] {
   }
   if (akt) out.push(akt)
   return out.slice(0, 3)
+}
+
+// ---------- Mess- und Signalleitungen, Klemmleisten ----------
+
+export interface Stil { farbe: string; strich?: string; breite: number }
+
+/** Linienart je Leitungstyp: Daten/Steuerung strichpunktiert, Wandler-Messleitung durchgezogen,
+ *  Messspannung lang gestrichelt, Analogsignal kurz gestrichelt */
+const LEITUNGSSTIL: Record<Leitungstyp, { farbe: string; strich?: string }> = {
+  daten: { farbe: '#8e24aa', strich: '1.6 0.6 0.3 0.6' },
+  wandler: { farbe: '#c2410c' },
+  spannung: { farbe: '#b45309', strich: '2.4 0.8' },
+  analog: { farbe: '#0277bd', strich: '1 0.6' },
+}
+
+export function leitungsStil(typ: Leitungstyp | undefined, allp: boolean, farbig: boolean): Stil {
+  const s = LEITUNGSSTIL[typ ?? 'daten'] ?? LEITUNGSSTIL.daten
+  return { farbe: allp && !farbig ? '#000' : s.farbe, strich: s.strich, breite: 0.3 }
+}
+
+/** Verbindung zwischen zwei Geräten, ggf. über Klemmleisten geführt */
+export interface Zug extends Datenverbindung {
+  /** Klemmleisten in Reihenfolge von `von` nach `nach` */
+  klemmen?: Knoten[]
+}
+
+/**
+ * Fasst Verbindungen über Klemmleisten zusammen: A → X1, X1 → X2, X2 → B wird ein Zug A → B mit den
+ * Klemmleisten X1, X2. Leitungstyp, Art und Kabel kommen aus den Abschnitten; die Anschlussklemmen
+ * aus dem ersten bzw. letzten Abschnitt.
+ */
+export function zuege(daten: Datenverbindung[], a: Pick<Analyse, 'hilfs'>): Zug[] {
+  const hilfs = new Map((a.hilfs ?? []).map((h) => [h.k.id, h]))
+  if (!hilfs.size) return daten
+  const benutzt = new Set<Datenverbindung>()
+  const out: Zug[] = []
+  for (const d of daten) {
+    if (benutzt.has(d)) continue
+    const vonH = hilfs.has(d.von), nachH = hilfs.has(d.nach)
+    if (!vonH && !nachH) { out.push(d); continue }
+    if (vonH && nachH) continue // Mittelstück, wird von einem Ende aus aufgesammelt
+    // vom Geräteende aus durch die Klemmleisten laufen
+    const start = vonH ? d.nach : d.von
+    const teile: Datenverbindung[] = [d]
+    const klemmen: Knoten[] = []
+    benutzt.add(d)
+    let akt = vonH ? d.von : d.nach
+    let ende: string | undefined
+    while (hilfs.has(akt) && !klemmen.includes(hilfs.get(akt)!)) {
+      klemmen.push(hilfs.get(akt)!)
+      const weiter = daten.find((e) => !benutzt.has(e) && (e.von === akt || e.nach === akt))
+      if (!weiter) break
+      benutzt.add(weiter)
+      teile.push(weiter)
+      akt = weiter.von === akt ? weiter.nach : weiter.von
+      if (!hilfs.has(akt)) ende = akt
+    }
+    if (!ende) continue // Klemmleiste ohne Weiterführung: nichts zu zeichnen
+    const erst = teile[0], letzt = teile[teile.length - 1]
+    const z: Zug = { von: start, nach: ende, klemmen }
+    const typ = teile.find((t) => t.typ && t.typ !== 'daten')?.typ
+    if (typ) z.typ = typ
+    const art = teile.find((t) => t.art)?.art
+    if (art) z.art = art
+    const kabel = [...new Set(teile.map((t) => t.kabel).filter(Boolean))].join(' / ')
+    if (kabel) z.kabel = kabel
+    const kv = erst.von === start ? erst.klemmeVon : erst.klemmeNach
+    const kn = letzt.nach === ende ? letzt.klemmeNach : letzt.klemmeVon
+    if (kv) z.klemmeVon = kv
+    if (kn) z.klemmeNach = kn
+    out.push(z)
+  }
+  return out
+}
+
+/** Länge der Klemmenangabe am Ende `l` einer Verbindung (Platzbedarf am senkrechten Abgang) */
+function klemmenLaenge(d: Datenverbindung, l: Lage): number {
+  const t = klemmenText(l.n.k.id === d.von ? d.klemmeVon : d.nach === l.n.k.id ? d.klemmeNach : undefined, parameter(l.n))
+  return t ? t.length * 0.75 + 1.5 : 0
+}
+
+/** Parameter einer Komponente einschließlich der Standardwerte ihres Typs */
+function parameter(n: Knoten) {
+  return { ...standardParams(n.k.typ), ...(n.k.params ?? {}) }
+}
+
+/** Lage einer Klemmleiste: auf dem ersten ausreichend langen waagerechten Abschnitt vom Ende aus */
+function klemmPos(pkt: number[][], vomEnde: boolean, L: number): number | undefined {
+  const p = vomEnde ? [...pkt].reverse() : pkt
+  const erst = Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1])
+  // langer erster Abschnitt (z. B. Abgang mit Klemmenangabe): kurz vor dessen Ende, nahe am Gerät
+  if (erst >= 10) return vomEnde ? L - (erst - 5.5) : erst - 5.5
+  let s = 0
+  for (let i = 1; i < p.length; i++) {
+    const len = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])
+    if (Math.abs(p[i][1] - p[i - 1][1]) < 0.01 && len >= 5) {
+      const t = s + Math.min(6, len / 2)
+      return vomEnde ? L - t : t
+    }
+    s += len
+  }
+  return undefined
+}
+
+/** Lage der in diesem Plan gezeichneten Klemmleisten (für Einbauort-Rahmen) */
+let klemmOrte: { n: Knoten; x0: number; y0: number; x1: number; y1: number }[] = []
+
+/** Punkt im Abstand s entlang eines Linienzugs; `senk`: Abschnitt verläuft senkrecht */
+function aufPfad(pkt: number[][], s: number): { x: number; y: number; senk: boolean } {
+  let rest = s
+  for (let i = 1; i < pkt.length; i++) {
+    const [x0, y0] = pkt[i - 1], [x1, y1] = pkt[i]
+    const len = Math.hypot(x1 - x0, y1 - y0)
+    if (rest <= len || i === pkt.length - 1) {
+      const t = len ? Math.min(1, rest / len) : 0
+      return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, senk: Math.abs(x1 - x0) < Math.abs(y1 - y0) }
+    }
+    rest -= len
+  }
+  return { x: pkt[0][0], y: pkt[0][1], senk: true }
+}
+
+function pfadLaenge(pkt: number[][]): number {
+  let l = 0
+  for (let i = 1; i < pkt.length; i++) l += Math.hypot(pkt[i][0] - pkt[i - 1][0], pkt[i][1] - pkt[i - 1][1])
+  return l
+}
+
+/** Zeichnet eine Mess-/Signalleitung (Punkte von `von` nach `nach`) mit Anschlussklemmen,
+ *  Klemmleisten und Kabelangabe */
+function zeichneZug(svg: Svg, pkt: number[][], d: Zug, st: Stil, lv?: Lage, ln?: Lage) {
+  const farbe = st.farbe
+  svg.pfad('M ' + pkt.map((pp) => `${pp[0].toFixed(2)} ${pp[1].toFixed(2)}`).join(' L '), { farbe, breite: st.breite, strich: st.strich })
+  for (const e of [pkt[0], pkt[pkt.length - 1]]) svg.kreis(e[0], e[1], 0.45, { farbe, fuellung: farbe, breite: 0.1 })
+  // Anschlussklemmen am Gerät
+  const klemme = (p: number[], q: number[], text: string) => {
+    if (!text) return
+    const senk = Math.abs(q[0] - p[0]) < Math.abs(q[1] - p[1])
+    // senkrecht: Angabe rechts neben der Leitung, vom Gerät weg laufend
+    if (senk) { const ab = q[1] > p[1]; svg.text(p[0] + 1.5, p[1] + (ab ? 0.8 : -0.8), text, { groesse: 1.4, farbe, drehung: -90, anker: ab ? 'end' : 'start' }) }
+    else {
+      const r = Math.sign(q[0] - p[0] || 1)
+      svg.text(p[0] + r * 0.9, p[1] - 0.6, text, { groesse: 1.4, farbe, anker: r > 0 ? 'start' : 'end' })
+    }
+  }
+  if (pkt.length > 1) {
+    klemme(pkt[0], pkt[1], klemmenText(d.klemmeVon, lv && parameter(lv.n)))
+    klemme(pkt[pkt.length - 1], pkt[pkt.length - 2], klemmenText(d.klemmeNach, ln && parameter(ln.n)))
+  }
+  const L = pfadLaenge(pkt)
+  const kl = d.klemmen ?? []
+  const rand = Math.min(10, L * 0.2)
+  const pos = kl.length === 1 ? [L / 2] : kl.map((_, i) => rand + (i * (L - 2 * rand)) / Math.max(1, kl.length - 1))
+  if (kl.length >= 2) {
+    // erste und letzte Klemmleiste nahe an ihren Geräten, möglichst auf waagerechten Abschnitten
+    const a = klemmPos(pkt, false, L), b = klemmPos(pkt, true, L)
+    if (a !== undefined && b !== undefined && a < b - 10) { pos[0] = a; pos[pos.length - 1] = b }
+  }
+  kl.forEach((n, i) => {
+    const p = aufPfad(pkt, pos[i])
+    const w = p.senk ? 3.4 : 1.8, h = p.senk ? 1.8 : 3.4
+    svg.rechteck(p.x - w / 2, p.y - h / 2, w, h, { farbe: '#000', fuellung: '#fff', breite: 0.3 })
+    const art = String(n.k.params?.art ?? '')
+    if (art === 'Prüfklemmleiste' || art === 'Trennklemmen') {
+      // Trennstelle: zwei Klemmpunkte mit Schrägstrich
+      const dx = p.senk ? 0 : 0.5, dy = p.senk ? 0.5 : 0
+      svg.kreis(p.x - dx, p.y - dy, 0.35, { farbe, fuellung: '#fff', breite: 0.2 })
+      svg.kreis(p.x + dx, p.y + dy, 0.35, { farbe, fuellung: '#fff', breite: 0.2 })
+      svg.linie(p.x - 0.9, p.y + 0.9, p.x + 0.9, p.y - 0.9, { breite: 0.2 })
+    } else svg.kreis(p.x, p.y, 0.45, { farbe, fuellung: '#fff', breite: 0.2 })
+    const kurz = n.def.kurz?.(n.k.params ?? {}) ?? ''
+    // Belegung zu je vier Klemmen je Zeile
+    const belListe = String(n.k.params?.belegung ?? '').split(',').map((t) => t.trim()).filter(Boolean)
+    const belZeilen = Array.from({ length: Math.ceil(belListe.length / 4) }, (_, i) => belListe.slice(i * 4, i * 4 + 4).join(' '))
+    const bel = belZeilen[0] ?? ''
+    // senkrecht: Beschriftung links der Leitung (rechts liegen meist weitere Abgänge des Geräts)
+    // senkrecht: links neben der Klemmleiste; waagerecht: darüber, links beginnend
+    const tx = p.senk ? p.x - 2.4 : p.x + 1.2
+    const ty = p.senk ? p.y - 0.2 : p.y - 1.4 - (belZeilen.length ? 3.7 + (belZeilen.length - 1) * 1.5 : 2)
+    const anker = 'end'
+    svg.text(tx, ty, n.bmk, { groesse: 1.9, fett: true, anker })
+    svg.text(tx, ty + 2, kurz, { groesse: 1.4, anker })
+    belZeilen.forEach((z, i) => svg.text(tx, ty + 3.7 + i * 1.5, z, { groesse: 1.2, farbe: '#444', anker }))
+    const breiteT = Math.max(n.bmk.length * 1.2, kurz.length * 0.72, ...belZeilen.map((z) => z.length * 0.6))
+    const unten = ty + (bel ? 4 + (belZeilen.length - 1) * 1.5 : 2.5)
+    klemmOrte.push({ n, x0: tx - breiteT, y0: Math.min(p.y - h / 2, ty - 2), x1: p.x + w / 2, y1: Math.max(p.y + h / 2, unten) })
+  })
+  // Kabelangabe in der Mitte zwischen den Klemmleisten (sonst in der Mitte der Leitung)
+  // Art der Leitung steht mit an der Kabelangabe
+  const kabelText = d.kabel ? (d.art ? `${d.art}  ${d.kabel}` : d.kabel) : ''
+  if (kabelText && L > 0) {
+    const von = kl.length >= 2 ? pos[0] : 0, bis = kl.length >= 2 ? pos[pos.length - 1] : L
+    // bevorzugt mittig auf dem längsten waagerechten Abschnitt zwischen den Klemmleisten
+    let m = kl.length >= 2 ? (von + bis) / 2 : kl.length === 1 ? (pos[0] + L) / 2 : L / 2
+    let s0 = 0, best = 0
+    for (let i = 1; i < pkt.length; i++) {
+      const len = Math.hypot(pkt[i][0] - pkt[i - 1][0], pkt[i][1] - pkt[i - 1][1])
+      const a0 = Math.max(s0, von + 3), a1 = Math.min(s0 + len, bis - 3)
+      if (Math.abs(pkt[i][1] - pkt[i - 1][1]) < 0.01 && a1 - a0 > best && a1 - a0 > kabelText.length * 0.8) { best = a1 - a0; m = (a0 + a1) / 2 }
+      s0 += len
+    }
+    const p = aufPfad(pkt, m)
+    if (p.senk) svg.text(p.x - 0.8, p.y, kabelText, { groesse: 1.5, farbe, drehung: -90, anker: 'middle' })
+    else svg.text(p.x, p.y - 0.8, kabelText, { groesse: 1.5, farbe, anker: 'middle' })
+  }
+}
+
+/** Wandlerzähler (halbindirekte Messung): Hauptleiter laufen durch, Zähler daneben */
+function halbindirekt(n: Knoten): boolean {
+  return n.def.symbol === 'zaehler' && n.k.params?.messart === 'halbindirekt'
+}
+
+/** Lage des Zählerkastens beim Wandlerzähler relativ zum (rechtesten) Hauptleiter */
+const ZAEHLER_SEITE = { links: (allp: boolean) => (allp ? 3.5 : 3), rechts: (allp: boolean) => (allp ? 15.5 : 12) }
+
+/** Zusätzlicher Abstand der Beschriftung rechts vom Gerät (Wandlerzähler steht neben den Leitern) */
+function textVersatz(n: Knoten, allp: boolean): number {
+  return halbindirekt(n) ? ZAEHLER_SEITE.rechts(allp) - (allp ? 2 : 4) : 0
+}
+
+/** Wandlerzähler: Kasten rechts neben den Hauptleitern, Spannungspfad von den Leitern abgegriffen
+ *  (mit Absicherung, wenn angegeben); der Strompfad kommt über die Wandler-Messleitung */
+function wandlerZaehler(svg: Svg, n: Knoten, xs: { le: LeiterName; x: number; farbe: string }[], y0: number, allp: boolean) {
+  const xmax = Math.max(...xs.map((p) => p.x))
+  const a = xmax + ZAEHLER_SEITE.links(allp), b = xmax + ZAEHLER_SEITE.rechts(allp)
+  svg.rechteck(a, y0 + 2.5, b - a, 9, { fuellung: '#fff' })
+  svg.text((a + b) / 2, y0 + 7.4, 'kWh', { groesse: 2.3, anker: 'middle', fett: true })
+  svg.text((a + b) / 2, y0 + 10.3, n.k.params?.art === 'Zweirichtung' ? '<> Wandler' : 'Wandler', { groesse: 1.4, anker: 'middle' })
+  const abgesichert = !!n.k.params?.spannungspfad
+  const abgriffe = xs.filter((p) => p.le !== 'PE')
+  abgriffe.forEach((p, i) => {
+    const y = y0 + (allp ? 3.6 + i * 1.7 : 5)
+    svg.linie(p.x, y, a, y, { farbe: p.farbe, breite: 0.25 })
+    svg.punkt(p.x, y, p.farbe, 0.4)
+    if (abgesichert && p.le !== 'N') {
+      const fx = allp ? xmax + 0.6 : p.x + 0.7
+      const fw = a - fx - 0.4
+      svg.rechteck(fx, y - 0.4, fw, 0.8, { farbe: p.farbe, fuellung: '#fff', breite: 0.2 })
+    }
+  })
+  if (abgesichert) svg.text(a, y0 + 1.8, `U-Pfad: ${n.k.params!.spannungspfad}`, { groesse: 1.3, farbe: '#444' })
+}
+
+/** Stromwandler (IEC 60617 S00841): Kreis um den Leiter, Sekundäranschluss nach rechts oben */
+function stromwandler(svg: Svg, x: number, ym: number, r: number, yAnschluss: number, xAnschluss?: number, fa = '#000') {
+  svg.kreis(x, ym, r, { farbe: fa, fuellung: 'none', breite: 0.35 })
+  const sek = '#c2410c'
+  if (xAnschluss !== undefined) {
+    // einpolig: Sekundärkreis als kurzer Abgang zur Anschlussstelle
+    svg.pfad(`M ${x + r * 0.7} ${ym - r * 0.7} L ${x + r * 0.7 + 1} ${yAnschluss} H ${xAnschluss}`, { farbe: sek, breite: 0.25 })
+  } else svg.linie(x + r * 0.45, ym - r * 0.9, x + 0.6, yAnschluss, { farbe: sek, breite: 0.25 })
+}
+
+/** Motorantrieb eines Schaltgeräts: Kästchen mit M links, Wirkverbindung gestrichelt zum Schaltstück */
+function motorAntrieb(svg: Svg, mx: number, my: number) {
+  const bx = mx - 7
+  svg.linie(bx + 1.5, my, mx, my, { strich: '0.8 0.6', breite: 0.25 })
+  svg.rechteck(bx - 1.5, my - 1.5, 3, 3, { fuellung: '#fff', breite: 0.3 })
+  svg.text(bx, my + 0.8, 'M', { groesse: 2, anker: 'middle', fett: true })
 }

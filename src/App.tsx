@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analysiere } from './model/analyse'
 import { BEISPIEL_YAML } from './model/beispiel'
+import { BEISPIEL_WANDLER_YAML } from './model/beispielWandler'
 import type { Projekt } from './model/types'
 import { leeresProjekt, parseYaml, toYaml, YamlFehler } from './model/yaml'
 import { NodeEditor } from './editor/NodeEditor'
@@ -103,10 +104,11 @@ export default function App() {
     vonYaml(t)
     sauber(undefined, t)
   }
-  const beispiel = () => {
+  const beispiel = (welches?: 'wandler') => {
     if (!verwerfenOk('Beispielprojekt laden')) return
-    vonYaml(BEISPIEL_YAML)
-    sauber(undefined, BEISPIEL_YAML)
+    const t = welches === 'wandler' ? BEISPIEL_WANDLER_YAML : BEISPIEL_YAML
+    vonYaml(t)
+    sauber(undefined, t)
   }
 
   const oeffnen = async (ref?: DateiRef) => {

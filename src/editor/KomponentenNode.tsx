@@ -15,10 +15,10 @@ export type KomponentenNodeTyp = Node<KomponentenNodeData, 'komponente'>
 export function KomponentenNode({ data, selected }: NodeProps<KomponentenNodeTyp>) {
   const { k, def, knoten, meldung } = data
   const kurz = def.kurz?.(k.params ?? {}) ?? ''
-  const leiter = def.potential ? 'PE' : knoten ? (knoten.dc ? 'DC' : knoten.pole === 3 ? '3~' : knoten.phase ?? '1~') : ''
+  const leiter = def.hilfs ? '' : def.potential ? 'PE' : knoten ? (knoten.dc ? 'DC' : knoten.pole === 3 ? '3~' : knoten.phase ?? '1~') : ''
   return (
     <div className={`kn ${selected ? 'sel' : ''} ${meldung ?? ''}`} style={{ ['--farbe' as string]: def.farbe }}>
-      {!def.wurzel && !def.potential && <Handle type="target" id="strom-in" position={Position.Top} />}
+      {!def.wurzel && !def.potential && !def.hilfs && <Handle type="target" id="strom-in" position={Position.Top} />}
       {def.pa && <Handle type="target" id="pa-in" position={Position.Left} className="pa-handle" title="Potentialausgleich (Eingang)" />}
       {def.pa && <Handle type="source" id="pa-out" position={Position.Right} className="pa-handle" title="Potentialausgleich ziehen" />}
       {def.daten && <Handle type="target" id="daten-in" position={Position.Left} className="daten-handle" title="Datenverbindung (Eingang)" />}
