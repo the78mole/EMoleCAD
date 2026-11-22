@@ -88,13 +88,17 @@ export class Svg {
   }
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
 /** Wandelt den SVG-Text eines Blatts in ein DOM-Element, ohne innerHTML:
  *  Der XML-Parser führt keine Skripte aus und hängt nichts ans Dokument. */
 export function svgElement(svg: string, dok: Document = document): SVGSVGElement {
-  // In XML verbotene Steuerzeichen (z.B. aus eingefügtem Text) entfernen, sonst scheitert der Parser
+  // In XML verbotene Zeichen (Steuerzeichen, einzelne UTF-16-Surrogate, z.B. aus eingefügtem Text)
+  // entfernen, sonst scheitert der Parser. Mit dem u-Flag trifft der Surrogat-Bereich nur ungepaarte.
   // oxlint-disable-next-line no-control-regex -- Steuerzeichen bewusst
-  const xml = new DOMParser().parseFromString(svg.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, ''), 'image/svg+xml')
+  const sauber = svg.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff\ud800-\udfff]/gu, '')
+  const xml = new DOMParser().parseFromString(sauber, 'image/svg+xml')
   const wurzel = xml.documentElement
-  if (wurzel.nodeName !== 'svg' || xml.getElementsByTagName('parsererror').length) throw new Error('Ungültiges SVG')
+  if (wurzel.localName !== 'svg' || wurzel.namespaceURI !== SVG_NS || xml.getElementsByTagName('parsererror').length) throw new Error('Ungültiges SVG')
   return dok.importNode(wurzel, true) as unknown as SVGSVGElement
 }
