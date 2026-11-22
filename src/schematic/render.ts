@@ -128,6 +128,8 @@ interface Lage {
   steig?: { x: number; y: Partial<Record<LeiterName, number>> }
   /** Senkrechte Gasse rechts neben dem Teilbaum für Steuerleitungen in den Kanal */
   kanalX?: number
+  /** Senkrechte Gasse rechts neben dem Teilbaum für den Potentialausgleich */
+  paX?: number
 }
 
 type Cx = (l: Lage, le: LeiterName, liste?: LeiterName[]) => number
@@ -209,15 +211,21 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   // Steuerleitungen, die über den Kanal unter den Endverbrauchern geführt werden
   const kanalVerb = new Set<Datenverbindung>()
   const kanalAnz = new Map<Knoten, number>()
+  /** Steuerleitungen von Geräten der Einspeisekette in den Kanal (z. B. Energiezähler – Wechselrichter) */
+  let ketteKanal = 0
   // nur in der Hager-Anordnung, wo Einspeisekette und ungezählter Bereich bekannt sind
   for (const d of kette.length ? (o.daten ?? []) : []) {
     const p = a.knoten.get(d.von), q = a.knoten.get(d.nach)
     if (!p || !q || p === q || fremd(d.von) || fremd(d.nach) || p.def.potential || q.def.potential) continue
-    if (inKette.has(p) || inKette.has(q)) continue
-    // beide im ungezählten Bereich: kurze direkte Verbindung
-    if (seiteAuf.has(p) && seiteAuf.has(q)) continue
+    // innerhalb der Kette bzw. zwischen Kette und ungezähltem Bereich: kurze direkte Verbindung
+    if (inKette.has(p) && inKette.has(q)) continue
+    if ((inKette.has(p) || seiteAuf.has(p)) && (inKette.has(q) || seiteAuf.has(q))) continue
+    // Kette – Verteilung: nicht quer durch die Reihen der Schutzorgane, sondern über den Kanal
     kanalVerb.add(d)
-    for (const n of [p, q]) if (n.kinder.length || seiteAuf.has(n)) kanalAnz.set(n, (kanalAnz.get(n) ?? 0) + 1)
+    for (const n of [p, q]) {
+      if (inKette.has(n)) ketteKanal++
+      else if (n.kinder.length || seiteAuf.has(n)) kanalAnz.set(n, (kanalAnz.get(n) ?? 0) + 1)
+    }
   }
   // Gasse für die senkrechten Steuerleitungen rechts neben dem Teilbaum
   const gasse = (n: Knoten) => kanalAnz.has(n)
@@ -230,6 +238,8 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     }
   }
 
+  // nur gültige Verbindungen zählen (beide Enden vorhanden), sonst bliebe ein SPD ohne Erdung
+  const paIds = new Set((o.pa ?? []).filter((d) => d.von !== d.nach && a.knoten.has(d.von) && a.knoten.has(d.nach)).flatMap((d) => [d.von, d.nach]))
   const lagen = new Map<Knoten, Lage>()
   const platziere = (n: Knoten, x0: number): number => {
     const zeile = n.kinder.length ? (seiteAb.get(n) ?? relTiefe(n)) : zeilen - 1
@@ -250,14 +260,25 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     l.x = lagen.get(n.kinder[0])!.x
     return summe + mitGasse(l, x0 + summe)
   }
-  /** Reserviert die Steuerleitungsgasse rechts vom Teilbaum; gibt ihre Breite zurück */
+  /** Reserviert die Gassen für Potentialausgleich und Steuerleitungen rechts vom Teilbaum; gibt ihre Breite zurück */
   const mitGasse = (l: Lage, kante: number) => {
-    if (!gasse(l.n)) return 0
+    // Potentialausgleich eines Geräts mit Abgängen nicht durch dessen Teilbaum, sondern daneben
+    const paGasse = paIds.has(l.n.k.id) && l.n.kinder.length > 0
+    if (!gasse(l.n) && !paGasse) return 0
     // Gasse rechts von der Beschriftung im Teilbaum
     let textEnde = kante
     for (const t of lagen.values()) if (istNachfahr(t.n, l.n)) textEnde = Math.max(textEnde, beschriftungsEnde(t))
-    l.kanalX = Math.max(kante + 3, textEnde + 1.5)
-    const g = l.kanalX - kante + (kanalAnz.get(l.n)! - 1) * KANAL_ABSTAND + 2.5
+    let rechts = kante
+    if (paGasse) {
+      l.paX = Math.max(kante + 3, textEnde + 1.5)
+      rechts = l.paX + 1.5
+      textEnde = Math.max(textEnde, l.paX)
+    }
+    if (gasse(l.n)) {
+      l.kanalX = Math.max(kante + 3, textEnde + 1.5)
+      rechts = l.kanalX + (kanalAnz.get(l.n)! - 1) * KANAL_ABSTAND
+    }
+    const g = rechts - kante + 2.5
     verbreitere(l.n, kante, g)
     return g
   }
@@ -316,17 +337,51 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
       lagen.set(k, { n: k, x: kx, symTop, symBot: symTop + SYM_H, aus: ausgaenge(k), busY: {}, kette: true })
     })
     x = 6 + kopfBreite
+    // Gasse für Steuerleitungen aus der Einspeisekette in den Kanal: zwischen dem ungezählten
+    // Bereich und den nach unten aufgebauten Strängen, der folgende Stromkreis bekommt die Breite
+    let gasseKette: { x: number; breite: number } | undefined
+    const setzeGasseKette = () => {
+      if (!ketteKanal || gasseKette) return
+      const breite = 3 + (ketteKanal - 1) * KANAL_ABSTAND + 2.5
+      for (const k of kette) lagen.get(k)!.kanalX = x + 3
+      gasseKette = { x, breite }
+      x += breite
+    }
     for (const s of seitenWurzeln) {
+      if (s.ab) setzeGasseKette()
       if (s.ab) x += platziereAb(s.n, x, kette[s.k])
       else x += platziereSeite(s.n, x, lagen.get(kette[s.k])!.symTop - abzweigAbstand, 0)
       if (!s.ab) trennX = x
     }
+    setzeGasseKette()
     for (const c of kette[kette.length - 1].kinder) x += platziere(c, x)
     x += 6
+    if (gasseKette) {
+      const { x: gx, breite } = gasseKette
+      const erster = [...lagen.values()].find((l) => l.slotX0 !== undefined && Math.abs(l.slotX0 - gx - breite) < 0.01)
+      if (erster) { erster.slotX0 = gx; erster.slotW! += breite }
+    }
   }
   for (const w of a.wurzeln) if (!lagen.has(w)) x += platziere(w, x) + 6
   let breite = Math.max(x, kopfBreite + 60)
-  const yNetz = rowTop0 + zeilen * H - 2
+  // Verweise auf andere Blätter sind keine echten Anschlusspunkte für Hilfsleitungen
+  const eigene = new Map([...lagen].filter(([n]) => !fremd(n.k.id)))
+  const mitTabelle = hager && o.tabelle !== false
+  const unterste = symTopZeile(zeilen - 1)
+  // Kanal unter den Endverbrauchern; ohne Tabelle unter deren senkrechter Beschriftung
+  const textUnten = mitTabelle ? 0 : Math.max(0, ...[...eigene.values()].filter((l) => !l.n.kinder.length && Math.abs(l.symTop - unterste) < 0.01).map((l) => Math.max((l.n.k.name ?? l.n.def.label).length, kabelText(l.n).length) * 1.25 + 4))
+  // Klemmenangaben an den Abgängen in den Kanal brauchen Platz über der obersten Spur
+  const kanalKlemmen = Math.max(0, ...[...kanalVerb].flatMap((d) => [d.von, d.nach].map((id) => { const l = lagen.get(a.knoten.get(id)!); return l ? klemmenLaenge(d, l) : 0 })))
+  // Oberkante des ungezählten Bereichs: Leitungen aus der Kette, die tiefer liegen, laufen darüber
+  const seitenLagen = [...eigene.values()].filter((l) => seiteAuf.has(l.n))
+  const seiteOben = seitenLagen.length ? Math.min(...seitenLagen.map((l) => l.symTop)) - 4 - (o.daten ?? []).length * 1.6 : undefined
+  const kanal: Kanal = { verb: kanalVerb, y0: unterste + SYM_H + 1 + textUnten + kanalKlemmen, unterste, mitTabelle, seiteOben }
+  // Liegt die PA-Schiene wegen des Steuerleitungskanals tiefer, rückt die Netzangabe darunter
+  const paUnterKanal = kanalVerb.size > 0 && (o.pa ?? []).some((d) => [d.von, d.nach].some((id) => {
+    const n = a.knoten.get(id)
+    return !!n && lagen.has(n) && !inKette.has(n) && !seiteAuf.has(n)
+  }))
+  const yNetz = Math.max(rowTop0 + zeilen * H - 2, paUnterKanal ? kanal.y0 + (kanalVerb.size - 1) * KANAL_SPUR + 7 + 6 : 0)
 
   const cx: Cx = (l, leiter, liste = l.n.leiter) => {
     if (!allp) return l.x
@@ -375,8 +430,6 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     })
   }
 
-  // nur gültige Verbindungen zählen (beide Enden vorhanden), sonst bliebe ein SPD ohne Erdung
-  const paIds = new Set((o.pa ?? []).filter((d) => d.von !== d.nach && a.knoten.has(d.von) && a.knoten.has(d.nach)).flatMap((d) => [d.von, d.nach]))
   for (const l of lagen.values()) if (paIds.has(l.n.k.id)) l.pa = true
 
   // --- Komponenten ---
@@ -445,15 +498,6 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     } else beschriftung(svg, l, allp, cx, hager && o.tabelle !== false, (o.daten ?? []).filter((d) => d.von === n.k.id || d.nach === n.k.id).length)
   }
 
-  // Verweise auf andere Blätter sind keine echten Anschlusspunkte für Hilfsleitungen
-  const eigene = new Map([...lagen].filter(([n]) => !fremd(n.k.id)))
-  const mitTabelle = hager && o.tabelle !== false
-  const unterste = symTopZeile(zeilen - 1)
-  // Kanal unter den Endverbrauchern; ohne Tabelle unter deren senkrechter Beschriftung
-  const textUnten = mitTabelle ? 0 : Math.max(0, ...[...eigene.values()].filter((l) => !l.n.kinder.length && Math.abs(l.symTop - unterste) < 0.01).map((l) => Math.max((l.n.k.name ?? l.n.def.label).length, kabelText(l.n).length) * 1.25 + 4))
-  // Klemmenangaben an den Abgängen in den Kanal brauchen Platz über der obersten Spur
-  const kanalKlemmen = Math.max(0, ...[...kanalVerb].flatMap((d) => [d.von, d.nach].map((id) => { const l = lagen.get(a.knoten.get(id)!); return l ? klemmenLaenge(d, l) : 0 })))
-  const kanal = { verb: kanalVerb, y0: unterste + SYM_H + 1 + textUnten + kanalKlemmen, unterste, mitTabelle }
   const daten = datenLinien(svg, eigene, o, allp, cx, vw, kanal)
   // Einbauorte (z. B. eigener Messumformerschrank) als Strichpunkt-Rahmen um Geräte und Klemmleisten
   const orte = new Map<string, { x0: number; y0: number; x1: number; y1: number }>()
@@ -473,14 +517,14 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     svg.rechteck(r.x0, y0, r.x1 - r.x0, r.y1 - y0, { farbe: '#444', fuellung: 'none', breite: 0.25, strich: '2 0.8 0.4 0.8' })
     svg.text(r.x0 + 0.8, y0 + 2, ort, { groesse: 1.6, farbe: '#444', fett: true })
   }
-  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 }, vw)
+  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 }, vw, daten.kanal)
   for (const l of eigene.values()) vw.orte.set(l.n.k.id, { x: l.x, y: (l.symTop + l.symBot) / 2 })
   breite = Math.max(breite, pa.rechts + 4, daten.rechts + 4)
 
   let hoehe = Math.max(hager ? yNetz + 12 : OBEN + zeilen * H + BESCHRIFTUNG_UNTEN, pa.unten + 4, daten.unten + 4)
   if (mitTabelle) {
     const blaetter = [...lagen.values()].filter((l) => l.slotW !== undefined && !fremd(l.n.k.id)).sort((p, q) => p.slotX0! - q.slotX0!)
-    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, Math.max(yNetz + 12, daten.unten + 3), trennX) + 4
+    if (blaetter.length) hoehe = tabelle(svg, blaetter, 2, blaetter[0].slotX0!, Math.max(yNetz + 12, daten.unten + 3, pa.unten + 3), trennX) + 4
   }
   return { inhalt: vw.fertig(svg.toString(), o), breite, hoehe, orte: vw.orte, anker: vw.anker_, verweise: vw.ziele }
 }
@@ -574,22 +618,23 @@ interface Kanal {
   /** symTop der Endverbraucherzeile */
   unterste: number
   mitTabelle: boolean
+  /** Oberkante des ungezählten Bereichs (samt Platz für dessen Leitungen) */
+  seiteOben?: number
 }
 
+/** Belegter Bereich des Steuerleitungskanals (waagerechte Spuren) */
+export interface KanalBereich { x0: number; x1: number; y0: number; y1: number }
+
 /** Zeichnet die Informationsverbindungen; gibt die rechteste und unterste belegte Position zurück */
-function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, vw: Verweise, kanal?: Kanal): { rechts: number; unten: number } {
+function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, vw: Verweise, kanal?: Kanal): { rechts: number; unten: number; kanal?: KanalBereich } {
   const alleVerb = o.daten ?? []
   let rechts = 0
   let unten = 0
+  let bereich: KanalBereich | undefined
   if (!alleVerb.length) return { rechts, unten }
   const nachId = new Map([...lagen.values()].map((l) => [l.n.k.id, l]))
   const stilVon = (d: Datenverbindung) => leitungsStil(d.typ, allp, !!o.farbig)
   const kanalAm = (l: Lage) => (kanal ? [...kanal.verb].filter((d) => d.von === l.n.k.id || d.nach === l.n.k.id).length : 0)
-  if (kanal?.verb.size) {
-    const k = datenKanal(svg, [...kanal.verb].map((d) => ({ d, a: nachId.get(d.von)!, b: nachId.get(d.nach)! })).filter((v) => v.a && v.b), kanal, allp, cx, stilVon)
-    rechts = k.rechts
-    unten = k.unten
-  }
   const liste = alleVerb.filter((d) => !kanal?.verb.has(d))
   const geo = (l: Lage) => geometrie(l, allp, cx)
   const grundSeite = (l: Lage): Seite => (l.kette ? 'kette' : !l.n.kinder.length ? (l.aufwaerts ? 'oben' : 'unten') : 'rechts')
@@ -655,6 +700,18 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
   const ketteTextEnde = Math.max(0, ...kettenLagen.map(textEnde))
   // Leitungen zwischen Geräten unterhalb des Kopfs laufen links an dessen Beschriftung vorbei
   const ketteTextEndeOhneKopf = Math.max(0, ...kettenLagen.filter((l) => !istKopf(l)).map(textEnde))
+  if (kanal?.verb.size) {
+    // Geräte der Einspeisekette: Anschlüsse unter denen der direkten Leitungen, Umweg rechts an den
+    // Beschriftungen der Kette vorbei
+    const kette = {
+      versatz: (l: Lage) => liste.filter((d) => d.von === l.n.k.id || d.nach === l.n.k.id).length,
+      spurX: ketteTextEndeOhneKopf + 1.5 + liste.length * 1.6,
+    }
+    const k = datenKanal(svg, [...kanal.verb].map((d) => ({ d, a: nachId.get(d.von)!, b: nachId.get(d.nach)! })).filter((v) => v.a && v.b), kanal, allp, cx, stilVon, kette)
+    rechts = k.rechts
+    unten = k.unten
+    bereich = k.bereich
+  }
   const stichGesamt = new Map<Lage, number>()
   for (const d of liste) { const v = verweisZiel(d); if (v) stichGesamt.set(v.l, (stichGesamt.get(v.l) ?? 0) + 1) }
   const stichNr = new Map<Lage, number>()
@@ -730,7 +787,7 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
       svg.text(tx, ty, d.art, { groesse: 1.7, anker: lang ? 'middle' : 'start', farbe })
     }
   })
-  return { rechts, unten }
+  return { rechts, unten, kanal: bereich }
 }
 
 /**
@@ -740,7 +797,8 @@ function datenLinien(svg: Svg, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: 
  * ihrem Teilbaum. Verschachtelte Leitungen bekommen innen liegende Spuren, damit sich
  * senkrechte und waagerechte Stücke möglichst nicht kreuzen.
  */
-function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], k: Kanal, allp: boolean, cx: Cx, stilVon: (d: Datenverbindung) => Stil): { rechts: number; unten: number } {
+function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], k: Kanal, allp: boolean, cx: Cx, stilVon: (d: Datenverbindung) => Stil,
+  kette: { versatz: (l: Lage) => number; spurX: number }): { rechts: number; unten: number; bereich: KanalBereich } {
   const vonUnten = (l: Lage) => l.kanalX === undefined || (!l.n.kinder.length && !l.aufwaerts && !l.kette && Math.abs(l.symTop - k.unterste) < 0.01)
   const basis = (l: Lage) => (vonUnten(l) ? l.x : l.kanalX!)
   // Spuren: kürzere Leitungen innen (oben), überlappende darunter
@@ -761,7 +819,28 @@ function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], 
   const nr = new Map(verb.map((v, i) => [v, i]))
   const ende = new Map<string, { x: number; y: number; pfad: number[][] }>()
   const geraete = new Set(verb.flatMap((v) => [v.a, v.b]))
+  // Anschlüsse an der Einspeisekette: rechts heraus, waagerecht zur Gasse vor der Verteilung, dort
+  // hinunter in den Kanal. Höhere Anschlüsse liegen in der Gasse rechts, so kreuzen sie sich nicht.
+  const ketteAus: { schl: string; l: Lage; y: number; x: number }[] = []
   for (const l of geraete) {
+    if (!l.kette) continue
+    const g = geometrie(l, allp, cx)
+    verb.filter((v) => v.a === l || v.b === l).forEach((v, i) => ketteAus.push({ schl: `${nr.get(v)}:${l.n.k.id}`, l, y: g.oben + 1.5 + (kette.versatz(l) + i) * 1.6, x: g.rechts }))
+  }
+  ketteAus.sort((p, q) => p.y - q.y)
+  // Anschlüsse unterhalb der Oberkante des ungezählten Bereichs laufen erst hoch und darüber hinweg
+  const umweg = ketteAus.filter((e) => k.seiteOben !== undefined && e.y > k.seiteOben)
+  ketteAus.forEach((e, rang) => {
+    const v = verb[Number(e.schl.split(':')[0])]
+    const y = spurY(v.d)
+    const dx = e.l.kanalX! + (ketteAus.length - 1 - rang) * KANAL_ABSTAND
+    const j = umweg.indexOf(e)
+    const pfad = j < 0 ? [[e.x, e.y], [dx, e.y], [dx, y]]
+      : [[e.x, e.y], [kette.spurX + j * 1.6, e.y], [kette.spurX + j * 1.6, k.seiteOben! - (umweg.length - 1 - j) * 1.6], [dx, k.seiteOben! - (umweg.length - 1 - j) * 1.6], [dx, y]]
+    ende.set(e.schl, { x: dx, y, pfad })
+  })
+  for (const l of geraete) {
+    if (l.kette) continue
     const eigene = verb.filter((v) => v.a === l || v.b === l).map((v) => ({ v, gegen: basis(v.a === l ? v.b : v.a), s: spur.get(v.d)! }))
     const x0 = basis(l)
     const linksL = eigene.filter((e) => e.gegen < x0).sort((p, q) => p.s - q.s)
@@ -788,16 +867,22 @@ function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], 
   }
   let rechts = 0
   let unten = 0
+  const bereich: KanalBereich = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity }
   for (const v of verb) {
     const p = ende.get(`${nr.get(v)}:${v.a.n.k.id}`)!
     const q = ende.get(`${nr.get(v)}:${v.b.n.k.id}`)!
+    bereich.x0 = Math.min(bereich.x0, p.x, q.x)
+    bereich.x1 = Math.max(bereich.x1, p.x, q.x)
+    bereich.y0 = Math.min(bereich.y0, p.y)
+    bereich.y1 = Math.max(bereich.y1, p.y)
     const pkt = [...p.pfad, ...[...q.pfad].reverse()]
     const stil = stilVon(v.d)
     const farbe = stil.farbe
     zeichneZug(svg, pkt, v.d, stil, v.a, v.b)
     rechts = Math.max(rechts, p.x, q.x)
     unten = Math.max(unten, p.y + 1)
-    if (!v.d.art) continue
+    // mit Kabelangabe beschriftet zeichneZug die Leitung, die Art entfällt wie bei den direkten Leitungen
+    if (!v.d.art || v.d.kabel) continue
     // Beschriftung in die größte freie Lücke der Spur (ohne kreuzende Senkrechte)
     const xa = Math.min(p.x, q.x), xb = Math.max(p.x, q.x)
     const kreuz = [...ende.values()].filter((e) => e.y > p.y + 0.01 && e.x > xa && e.x < xb).map((e) => e.x).sort((m, n) => m - n)
@@ -807,7 +892,7 @@ function datenKanal(svg: Svg, verb: { d: Datenverbindung; a: Lage; b: Lage }[], 
     const breiteText = v.d.art.length * 0.8
     if (punkte[best + 1] - punkte[best] > breiteText + 1.5) svg.text((punkte[best] + punkte[best + 1]) / 2, p.y - 0.5, v.d.art, { groesse: 1.5, anker: 'middle', farbe })
   }
-  return { rechts, unten }
+  return { rechts, unten, bereich }
 }
 
 // ---------- Potentialausgleich ----------
@@ -816,7 +901,7 @@ const PA_FARBE = '#2e9e3e'
 
 /** Zeichnet Potentialausgleichsschienen und ihre Verbindungen (eigene Verkabelung, getrennt vom Strompfad).
  *  Gibt die unterste belegte y-Position zurück. */
-function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }, vw: Verweise): { unten: number; rechts: number } {
+function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: PlanOptionen, allp: boolean, cx: Cx, frei: { x: number; y: number }, vw: Verweise, kanal?: KanalBereich): { unten: number; rechts: number } {
   const liste = o.pa ?? []
   if (!a.potential.length && !liste.length) return { unten: 0, rechts: 0 }
   const fa = o.farbig ? PA_FARBE : '#000'
@@ -826,7 +911,7 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
   let rechts = 0
 
   // Anschlusspunkt eines Geräts: p = am Gerät, w = Weg dorthin (Punkt, von dem es senkrecht weitergeht)
-  const anschluss = (l: Lage): { p: number[]; x: number; pe?: boolean } => {
+  const anschluss = (l: Lage): { p: number[]; x: number; pe?: boolean; links?: boolean } => {
     const n = l.n
     if (n.def.symbol === 'spd') return l.aufwaerts ? { p: [l.x, l.symTop + (allp ? 1.5 : 2)], x: l.x } : { p: [l.x, l.symTop + (allp ? 12.5 : 12)], x: l.x }
     if (n.def.symbol === 'schiene' && l.busMax !== undefined) {
@@ -835,16 +920,21 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     }
     const xs = n.leiter.map((le) => cx(l, le))
     const rechts = allp ? Math.max(...xs) + (n.def.durchgang ? 3.5 : 6) : l.x + (n.def.durchgang ? 4.5 : 5)
-    // rechts am Gerät, unten (Beschriftung steht oben rechts)
+    // rechts am Gerät, unten (Beschriftung steht oben rechts); bei Geräten mit Abgängen über die
+    // eigene Gasse neben dem Teilbaum
+    // (Gasse rechts daneben: Beschriftung links der Leitung, dort liegt keine Steuerleitung)
+    if (l.paX !== undefined) return { p: [rechts, l.symBot - 0.6], x: l.paX, links: true }
     return { p: [rechts, l.symBot - 2], x: rechts + 3 }
   }
-  const leitung = (q: { p: number[]; x: number; pe?: boolean }, y: number, text?: string) => {
+  const leitung = (q: { p: number[]; x: number; pe?: boolean; links?: boolean }, y: number, text?: string) => {
     const [px, py] = q.p
     svg.pfad(`M ${px} ${py} H ${q.x} V ${y}`, stil)
     svg.kreis(px, py, 0.45, { farbe: fa, fuellung: fa, breite: 0.1 })
     // einpolig steht die Sammelleitung für alle Leiter: Anschluss am PE kennzeichnen
     if (q.pe) svg.text(px + 0.9, py + (y > py ? 2.6 : -1), 'PE', { groesse: 1.6, farbe: fa })
-    if (text) svg.text(q.x + 0.8, (Math.max(py, y - 8) + y) / 2, text, { groesse: 1.6, farbe: fa })
+    // Gasse neben einem Teilbaum: Angabe oben links an der Senkrechten, unten liegen die Angaben der Endverbraucher
+    if (text && q.links) svg.text(q.x - 0.8, py + 3.5, text, { groesse: 1.6, farbe: fa, anker: 'end' })
+    else if (text) svg.text(q.x + 0.8, (Math.max(py, y - 8) + y) / 2, text, { groesse: 1.6, farbe: fa })
   }
   const querschnitt = (d: PaVerbindung) => (d.querschnitt ? `${d.querschnitt}${/mm/.test(d.querschnitt) ? '' : ' mm²'}` : undefined)
 
@@ -864,6 +954,10 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     const sonst = ans.filter((v) => !v.l.kette).map((v) => v.a.p[1] + 6)
     let y = Math.max(...kette, ...sonst, -Infinity)
     if (!Number.isFinite(y)) y = yFrei
+    // Schiene und Anschlussleitungen nicht durch den Steuerleitungskanal: Schiene mit Abstand darunter,
+    // die Anschlussleitungen kreuzen dessen Spuren rechtwinklig
+    const imKanal = (x0: number, x1: number) => !!kanal && x1 > kanal.x0 - 1 && x0 < kanal.x1 + 1
+    if (kanal && y > kanal.y0 - 3 && ans.some((v) => !v.l.kette && imKanal(v.a.x, v.a.x))) y = Math.max(y, kanal.y1 + 7)
     yFrei = y + 12
     // Geräte der Einspeisekette auf Schienenhöhe werden direkt waagerecht angefahren
     const direkt = ans.filter((v) => v.l.kette && Math.abs(v.a.p[1] - y) < 0.01)
