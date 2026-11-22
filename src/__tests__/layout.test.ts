@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analysiere } from '../model/analyse'
 import { zeichnePlan } from '../schematic/render'
-import { steuerleitungen } from './fixtures'
+import { einfamilienhaus, steuerleitungen } from './fixtures'
 import { parseYaml } from '../model/yaml'
 import { BEISPIEL_YAML } from '../model/beispiel'
 
@@ -84,18 +84,75 @@ describe('Leiterkennzeichnung (einpolig)', () => {
   })
 })
 
-describe('Datenleitungen an Geräten mit Abgängen', () => {
+/** Pfade der Informationsverbindungen als Punktlisten */
+function datenPfade(svg: string): number[][][] {
+  return [...svg.matchAll(new RegExp(`<path d="M ([^"]+)"[^>]*${STRICH}`, 'g'))].map((m) => m[1].split(' L ').map((pp) => pp.split(' ').map(Number)))
+}
+const xVon = (svg: string, bmk: string) => Number(svg.match(new RegExp(`<text x="([\\d.-]+)" y="[\\d.-]+"[^>]*>${bmk}</text>`))![1])
+
+describe('Datenleitungen aus der Einspeisekette in die Verteilung (#33)', () => {
   for (const modus of ['einpolig', 'allpolig'] as const) {
-    it(`werden auf der Seite der Gegenstelle angeschlossen (${modus})`, () => {
+    it(`laufen nicht quer durch die Schutzorgane, sondern über den Kanal (${modus})`, () => {
       const p = parseYaml(BEISPIEL_YAML)
       p.datenverbindungen = [{ von: 'PG1', nach: 'TB1', art: 'Modbus RTU' }]
       const svg = zeichnePlan(analysiere(p), { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen, tabelle: true }).inhalt
-      const pfad = svg.match(new RegExp(`<path d="M ([^"]+)"[^>]*${STRICH}`))![1].split(' L ').map((pp) => pp.split(' ').map(Number))
-      const xTB1 = Number(svg.match(/<text x="([\d.-]+)" y="[\d.-]+"[^>]*>-TB1<\/text>/)![1])
-      // Ende am Wechselrichter: links vom Gerät, der Weg kommt von links und kreuzt das Gerät nicht
-      const [ex] = pfad[0]
-      expect(ex).toBeLessThan(xTB1 - 8)
-      expect(Math.max(...pfad.map(([x]) => x))).toBeLessThan(xTB1 - 8)
+      const [pfad] = datenPfade(svg)
+      // Schutzorgane der Verteilung (ohne -FC3 direkt über dem Wechselrichter): Schaltzeichen links von der Beschriftung
+      const schutz = ['-FB1', '-FB2', '-FC4', '-FC5', '-FC6', '-FC7', '-FC8', '-FC9'].map((b) => xVon(svg, b))
+      const yVerbraucher = textY(svg, '-EA1')
+      for (let i = 1; i < pfad.length; i++) {
+        const [x0, y0] = pfad[i - 1], [x1, y1] = pfad[i]
+        expect(Math.abs(x0 - x1) < 0.01 || Math.abs(y0 - y1) < 0.01).toBe(true)
+        // waagerechte Stücke oberhalb der Endverbraucher kreuzen kein Schutzorgan
+        if (Math.abs(y0 - y1) < 0.01 && y0 < yVerbraucher) {
+          for (const x of schutz) expect(Math.max(x0, x1) < x - 12 || Math.min(x0, x1) > x).toBe(true)
+        }
+      }
+      // durch den Kanal unter den Endverbrauchern
+      expect(Math.max(...pfad.map(([, y]) => y))).toBeGreaterThan(yVerbraucher + 5)
+      // Beschriftung nicht neben einem Schutzorgan
+      expect(textY(svg, 'Modbus RTU')).toBeGreaterThan(yVerbraucher)
+    })
+  }
+
+  it('Geräte der Kette unterhalb des ungezählten Bereichs laufen über diesen hinweg', () => {
+    const p = einfamilienhaus()
+    p.datenverbindungen = [...(p.datenverbindungen ?? []), { von: 'XD1', nach: 'CC1', art: 'Test' }]
+    const svg = zeichnePlan(analysiere(p), { modus: 'einpolig', farbig: true, netz: p.netz, daten: p.datenverbindungen, tabelle: true }).inhalt
+    const pfad = datenPfade(svg).find((pk) => pk.some(([x]) => Math.abs(x - xVon(svg, '-CC1')) < 10) && pk.some(([x]) => x < xVon(svg, '-KE1')))!
+    const yKE = textY(svg, '-KE1')
+    const xKE = xVon(svg, '-KE2') + 10
+    // im Bereich von SMGW und Steuerbox nur oberhalb der Geräte
+    for (let i = 1; i < pfad.length; i++) {
+      const [x0, y0] = pfad[i - 1], [x1, y1] = pfad[i]
+      if (Math.abs(y0 - y1) < 0.01 && Math.max(x0, x1) > xVon(svg, '-KE1') - 8 && Math.min(x0, x1) < xKE) expect(y0).toBeLessThan(yKE - 4)
+    }
+  })
+})
+
+describe('Potentialausgleich und Steuerleitungen (#33)', () => {
+  for (const modus of ['einpolig', 'allpolig'] as const) {
+    it(`liegen auf getrennten Spuren (${modus})`, () => {
+      const p = einfamilienhaus()
+      const a = analysiere(p)
+      // Wechselrichter und Speicher dürfen an den Potentialausgleich
+      expect(a.meldungen).toEqual([])
+      const svg = zeichnePlan(a, { modus, farbig: true, netz: p.netz, daten: p.datenverbindungen, pa: p.potentialausgleich, tabelle: true }).inhalt
+      const schiene = svg.match(/<rect x="[\d.-]+" y="([\d.-]+)" width="[\d.-]+" height="1.2" fill="#fff" stroke="#2e9e3e"/)
+      const ySchiene = Number(schiene![1]) + 0.6
+      const pfade = datenPfade(svg)
+      const kanalUnten = Math.max(...pfade.flatMap((pk) => pk.map(([, y]) => y)))
+      expect(ySchiene).toBeGreaterThan(kanalUnten + 3)
+      // PA-Leitungen: keine waagerechten Stücke auf Höhe einer Steuerleitungsspur
+      const spuren = new Set(pfade.flatMap((pk) => pk.slice(1).filter(([, y], i) => Math.abs(y - pk[i][1]) < 0.01).map(([, y]) => y)))
+      const pa = [...svg.matchAll(/<path d="M ([\d.-]+) ([\d.-]+) H ([\d.-]+) V ([\d.-]+)" fill="none" stroke="#2e9e3e"/g)]
+      expect(pa.length).toBeGreaterThan(0)
+      for (const m of pa) for (const y of spuren) expect(Math.abs(Number(m[2]) - y)).toBeGreaterThan(0.5)
+      // Wechselrichter mit Abgängen: eigene Senkrechte, nicht die des PV-Generators
+      const xe = pa.map((m) => Number(m[3]))
+      expect(new Set(xe).size).toBe(xe.length)
+      // Netzangabe unter der Schiene
+      expect(textY(svg, modus === 'einpolig' ? 'TN-C-S  3/N/PE ~50 Hz' : 'TN-C-S  230/400 V')).toBeGreaterThan(ySchiene + 2)
     })
   }
 })

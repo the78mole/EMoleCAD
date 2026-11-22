@@ -17,7 +17,8 @@
     "test": "vitest run",
     "lint": "oxlint --deny-warnings",
     "preview": "vite preview",
-    "render-beispiel": "tsx scripts/render-beispiel.ts"
+    "render-beispiel": "tsx scripts/render-beispiel.ts",
+    "render-datei": "tsx scripts/render-datei.ts"
   },
   "dependencies": {
     "@codemirror/lang-yaml": "^6.1.3",

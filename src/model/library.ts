@@ -224,7 +224,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `SPD Typ ${n(p.spdtyp)}`,
   },
   {
-    typ: 'wechselrichter', daten: true, label: 'PV-Wechselrichter', kategorie: 'Erzeugung', bmk: 'TB', farbe: '#16a34a',
+    typ: 'wechselrichter', daten: true, pa: true, label: 'PV-Wechselrichter', kategorie: 'Erzeugung', bmk: 'TB', farbe: '#16a34a',
     pole: 3, poleWaehlbar: true, kinder: true, durchgang: false, symbol: 'wechselrichter',
     params: [
       { key: 'leistung', label: 'AC-Leistung', art: 'zahl', einheit: 'kW', standard: 10 },
@@ -244,7 +244,7 @@ export const BIBLIOTHEK: TypDef[] = [
     kurz: (p) => `${n(p.leistung)} kWp, ${n(p.module)} Mod.`,
   },
   {
-    typ: 'speicher', daten: true, label: 'Batteriespeicher', kategorie: 'Erzeugung', bmk: 'CC', farbe: '#14b8a6',
+    typ: 'speicher', daten: true, pa: true, label: 'Batteriespeicher', kategorie: 'Erzeugung', bmk: 'CC', farbe: '#14b8a6',
     pole: 3, poleWaehlbar: true, kinder: false, durchgang: false, symbol: 'speicher',
     params: [
       { key: 'kapazitaet', label: 'Kapazität', art: 'zahl', einheit: 'kWh', standard: 10 },
