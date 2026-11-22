@@ -1,5 +1,5 @@
 import type { Blatt } from '../schematic/blatt'
-import { pdfText } from '../schematic/svg'
+import { pdfText, svgElement } from '../schematic/svg'
 
 export async function exportierePdf(blaetter: Blatt[], dateiname: string) {
   const { jsPDF } = await import('jspdf')
@@ -14,8 +14,8 @@ export async function exportierePdf(blaetter: Blatt[], dateiname: string) {
     for (let i = 0; i < blaetter.length; i++) {
       const b = blaetter[i]
       if (i > 0) doc.addPage([b.breite, b.hoehe], ausrichtung(b))
-      halter.innerHTML = b.svg
-      const el = halter.querySelector('svg')!
+      const el = svgElement(b.svg)
+      halter.replaceChildren(el)
       for (const t of el.querySelectorAll('text')) if (t.textContent) t.textContent = pdfText(t.textContent)
       await doc.svg(el, { x: 0, y: 0, width: b.breite, height: b.hoehe })
     }
