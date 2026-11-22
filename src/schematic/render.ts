@@ -263,7 +263,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
   /** Reserviert die Gassen für Potentialausgleich und Steuerleitungen rechts vom Teilbaum; gibt ihre Breite zurück */
   const mitGasse = (l: Lage, kante: number) => {
     // Potentialausgleich eines Geräts mit Abgängen nicht durch dessen Teilbaum, sondern daneben
-    const paGasse = paIds.has(l.n.k.id) && l.n.kinder.length > 0
+    const paGasse = paIds.has(l.n.k.id) && l.n.kinder.length > 0 && !fremd(l.n.k.id)
     if (!gasse(l.n) && !paGasse) return 0
     // Gasse rechts von der Beschriftung im Teilbaum
     let textEnde = kante
@@ -517,7 +517,7 @@ export function zeichnePlan(a: Analyse, o: PlanOptionen): Plan {
     svg.rechteck(r.x0, y0, r.x1 - r.x0, r.y1 - y0, { farbe: '#444', fuellung: 'none', breite: 0.25, strich: '2 0.8 0.4 0.8' })
     svg.text(r.x0 + 0.8, y0 + 2, ort, { groesse: 1.6, farbe: '#444', fett: true })
   }
-  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 }, vw, daten.kanal)
+  const pa = potentialausgleich(svg, a, eigene, o, allp, cx, { x: 6 + kopfBreite, y: yNetz - 8 }, vw, paUnterKanal ? daten.kanal : undefined)
   for (const l of eigene.values()) vw.orte.set(l.n.k.id, { x: l.x, y: (l.symTop + l.symBot) / 2 })
   breite = Math.max(breite, pa.rechts + 4, daten.rechts + 4)
 
@@ -956,8 +956,8 @@ function potentialausgleich(svg: Svg, a: Analyse, lagen: Map<Knoten, Lage>, o: P
     if (!Number.isFinite(y)) y = yFrei
     // Schiene und Anschlussleitungen nicht durch den Steuerleitungskanal: Schiene mit Abstand darunter,
     // die Anschlussleitungen kreuzen dessen Spuren rechtwinklig
-    const imKanal = (x0: number, x1: number) => !!kanal && x1 > kanal.x0 - 1 && x0 < kanal.x1 + 1
-    if (kanal && y > kanal.y0 - 3 && ans.some((v) => !v.l.kette && imKanal(v.a.x, v.a.x))) y = Math.max(y, kanal.y1 + 7)
+    // (kanal wird nur übergeben, wenn die Verteilung angeschlossen ist; die Netzangabe ist dann schon tiefer gesetzt)
+    if (kanal && y > kanal.y0 - 3 && ans.some((v) => !v.l.kette)) y = Math.max(y, kanal.y1 + 7)
     yFrei = y + 12
     // Geräte der Einspeisekette auf Schienenhöhe werden direkt waagerecht angefahren
     const direkt = ans.filter((v) => v.l.kette && Math.abs(v.a.p[1] - y) < 0.01)

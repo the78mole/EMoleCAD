@@ -199,7 +199,7 @@ potentialausgleich:
   - { von: PAS1, nach: FA1, querschnitt: 16 }   # Überspannungsschutz
 ```
 
-Im Editor haben anschließbare Bausteine (HAK, Sammelschiene, SPD, Unterverteilung, PV-Generator, PAS) grüne runde Anschlüsse unten links/rechts.
+Im Editor haben anschließbare Bausteine (HAK, Sammelschiene, SPD, Unterverteilung, PV-Generator, Wechselrichter, Speicher, PAS) grüne runde Anschlüsse unten links/rechts.
 
 ## Architektur
 
