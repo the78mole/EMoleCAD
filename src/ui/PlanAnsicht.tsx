@@ -5,6 +5,7 @@ import { erzeugeBlatt, VORLAGEN, type Blatt, type BlattLogo } from '../schematic
 import { useLogo } from '../einstellungen/logo'
 import { zeichnePlaene } from '../schematic/blaetter'
 import type { Anordnung, Modus } from '../schematic/render'
+import { svgElement } from '../schematic/svg'
 import { dateiname, exportierePdf, herunterladen } from './export'
 
 interface Props {
@@ -140,6 +141,15 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
     f.addEventListener('wheel', onRad, { passive: false })
     return () => f.removeEventListener('wheel', onRad)
   }, [])
+  // Blatt einsetzen (ohne innerHTML); Breite übernimmt der umgebende Container
+  useLayoutEffect(() => {
+    const b = blattEl.current
+    if (!b) return
+    const el = svgElement(blatt.svg)
+    el.removeAttribute('height')
+    el.setAttribute('width', '100%')
+    b.replaceChildren(el)
+  }, [blatt.svg])
   useLayoutEffect(() => {
     const a = anker.current
     const f = flaeche.current
@@ -202,7 +212,7 @@ export function PlanAnsicht({ projekt, analyse, onEinklappen }: Props) {
         <button className="primaer" onClick={() => pdf(true)} disabled={exportiert}>{exportiert ? 'Exportiere…' : 'PDF (beide Pläne)'}</button>
       </div>
       <div className="plan-flaeche" ref={flaeche}>
-        <div className="blatt" ref={blattEl} style={{ width: stilBreite }} dangerouslySetInnerHTML={{ __html: blatt.svg.replace(/width="[^"]*mm" height="[^"]*mm"/, 'width="100%"') }} />
+        <div className="blatt" ref={blattEl} style={{ width: stilBreite }} />
       </div>
     </section>
   )
